@@ -1,3 +1,13 @@
+# Editor files
+*.swp
+
+# Build dir
+build/*
+
+# Other files
+tags
+.*
+
 # Compiled Object files
 *.slo
 *.lo

@@ -37,7 +37,7 @@ endif (CMAKE_BUILD_TYPE)
 
 # Build type must be either DEBUG or RELEASE.
 if (CMAKE_BUILD_TYPE STREQUAL "")
-  message("No build type specified: forcing to RELEASE.")
+  message("No build type specified: forcing to DEBUG.")
   set(CMAKE_BUILD_TYPE "DEBUG" CACHE STRING "" FORCE)
 endif (CMAKE_BUILD_TYPE STREQUAL "")
 

@@ -17,20 +17,26 @@
 // information.
 using TreeNodePtr = std::shared_ptr<data::Node<PlanNode>>;
 
-class ilqr_tree 
+class iLQRTree 
 {
 public:
-    ilqr_tree(int state_dim, int control_dim);
-    virtual ~ilqr_tree() = default;
+    iLQRTree(int state_dim, int control_dim);
+    virtual ~iLQRTree() = default;
 
-    //TreeNodePtr add_root(const Eigen::VectorXd &xstar, const Eigen::VectorXd &ustar, 
-    //        const DynamicsFunc &dynamics, const CostFunc &cost);
+    std::shared_ptr<PlanNode> make_plan_node(const Eigen::VectorXd &x_star,
+                                             const Eigen::VectorXd &u_star,
+                                             const DynamicsFunc &dynamics,
+                                             const CostFunc &cost,
+                                             const double probablity);
 
-    TreeNodePtr add_node(const Eigen::VectorXd &xstar, const Eigen::VectorXd &ustar, 
-            const DynamicsFunc &dynamics, const CostFunc &cost, const TreeNodePtr &parent);
+    TreeNodePtr add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd &u_star, 
+            const DynamicsFunc &dynamics, const CostFunc &cost);
+
+    std::vector<TreeNodePtr> add_nodes(const std::vector<std::shared_ptr<PlanNode>> &plan_nodes, 
+            TreeNodePtr &parent);
 
 private:
-    data::Tree<PlanNode> tree;
+    data::Tree<PlanNode> tree_;
 
     int state_dim_ = 0;
     int control_dim_ = 0;

@@ -8,10 +8,10 @@
 
 #include <Eigen/Dense>
 
-// Takes state, control and returns the next state.
+// Dynamics Function Prototype. Takes state, control and returns the next state.
 using DynamicsFunc = std::function<Eigen::VectorXd(Eigen::VectorXd,Eigen::VectorXd)>; 
 
-// Takes state, control and returns a real-valued cost.
+// Cost Function Prototype. Takes state, control and returns a real-valued cost.
 using CostFunc = std::function<double(Eigen::VectorXd,Eigen::VectorXd)>; 
 
 // Linearized dynamics parameters in terms of the extended-state [x, 1].
@@ -24,7 +24,6 @@ struct Dynamics
     // Extended controls matrix. [dim(x) + 1] x [dim(u)]
     // (extension is last row is [\vec{0}])
     Eigen::MatrixXd B;
-
 };
 
 // Quadratic cost parameters in terms of the extended-state [x, 1].
@@ -49,19 +48,31 @@ class PlanNode
 friend std::ostream& operator<<(std::ostream& os, const PlanNode& node);
 
 public:
-    PlanNode(int state_dim, int control_dim);
+    PlanNode(int state_dim, 
+             int control_dim, 
+             const DynamicsFunc &dynamics_func, 
+             const CostFunc &cost_func,
+             const double probablity);
 
     // Linearized dynamics.
-    Dynamics dynamics;
+    Dynamics dynamics_;
 
     // Quadratic approximation of the cost.
-    Cost cost;
+    Cost cost_;
 
     // Feedback gain matrix, [dim(u)] x [dim(x)]
-    Eigen::MatrixXd K; 
+    Eigen::MatrixXd K_; 
 
     // Value matrix in x^T V x. [dim(x) + 1] x [dim(x) + 1]
-    Eigen::MatrixXd V; 
+    Eigen::MatrixXd V_; 
+
+    double probability_;
+
+    // Uses the x_ and u_ to update the linearization of the dynamics.
+    void update_dynamics();
+
+    // Uses the x_ and u_ to update the quadraticization of the cost.
+    void update_cost();
 
     //
     // Get and set the  nominal xstar and ustar.
@@ -87,21 +98,28 @@ private:
     int state_dim_;
     int control_dim_;
 
+    // Helper types needed to call the math utils functions.
+    using DynamicsWrapper = std::function<Eigen::VectorXd(const Eigen::VectorXd&)>;
+    using CostWrapper = std::function<double(const Eigen::VectorXd&)>;
+    DynamicsWrapper dynamics_wrapper_;
+    CostWrapper cost_wrapper_;
+
     // State from this iLQR forward pass. [dim(x)] x [1]
     Eigen::VectorXd x_; 
     // Control from this iLQR forward pass. [dim(u)] x [1]
     Eigen::VectorXd u_; 
+    // Combined vector [x, u], used to call numerical differentiators (e.g. Jacobian).
+    Eigen::VectorXd xu_;
 
+    //TODO: Do I need these? Maybe for adding a cost function term lambda*(x-x*)I(x-x*)
     // Nominal (desired) state specified at the beginning of iLQR. [dim(x)] x [1]
     Eigen::VectorXd x_star_; 
     // Nominal (desired) control specified at the beginning of iLQR. [dim(u)] x [1]
     Eigen::VectorXd u_star_; 
-    // Combined vector [x*, u*], used to call numerical differentiators (e.g. Jacobian).
-    Eigen::VectorXd xu_star_;
 };
 
 std::ostream& operator<<(std::ostream& os, const PlanNode& node)
 {
-    os << "x: " << node.x_ << "u: " << node.u_;
+    os << "x: [" << node.x().transpose() << "], u: [" << node.u().transpose() << "]";
     return os;
 }

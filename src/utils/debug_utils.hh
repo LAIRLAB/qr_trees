@@ -20,6 +20,10 @@
     if (X != Y) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") EQUAL to (" << Y << ")."; throw std::logic_error(ss.str()); } \
 }
 
+#define IS_ALMOST_EQUAL(X,Y,EPS) {\
+    if (std::abs(X - Y) <= EPS) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") ALMOST EQUAL to (" << Y << ") with Eps " << EPS; throw std::logic_error(ss.str()); } \
+}
+
 #define IS_NOT_EQUAL(X,Y) {\
     if (X == Y) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") NOT EQUAL to (" << Y << ")."; throw std::logic_error(ss.str()); } \
 }
@@ -46,6 +50,14 @@
 
 #define IS_BETWEEN_INCLUSIVE(X, L, U) {\
     if (X < L || X > U) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") in inclusive range [" << L << ", " << U << "]."; throw std::logic_error(ss.str()); } \
+}
+
+#define IS_BETWEEN_UPPER_INCLUSIVE(X, L, U) {\
+    if (X <= L || X > U) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") in upper-inclusive range (" << L << ", " << U << "]."; throw std::logic_error(ss.str()); } \
+}
+
+#define IS_BETWEEN_LOWER_INCLUSIVE(X, L, U) {\
+    if (X < L || X >= U) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") in upper-inclusive range [" << L << ", " << U << ")."; throw std::logic_error(ss.str()); } \
 }
 
 #define IS_LESS(X,Y) {\

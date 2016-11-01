@@ -5,6 +5,9 @@
 #include <list>
 #include <memory>
 
+namespace data
+{
+
 template<typename T>
 class Node 
 {
@@ -94,6 +97,8 @@ class Tree
 public:
     using NodePtr = std::shared_ptr<Node<T>>;
 
+    Tree() : root_(nullptr) { }
+
     Tree(const std::shared_ptr<T> &root_item)
     {
         root_ = std::make_shared<Node<T>>(nullptr, root_item);
@@ -103,7 +108,10 @@ public:
     Tree(const NodePtr &root_node)
     {
         root_ = root_node;
-        find_leaves(root_);
+        if (root_)
+        {
+            find_leaves(root_);
+        }
     }
 
     virtual ~Tree() = default;
@@ -115,6 +123,9 @@ public:
     // The shared_ptr to the child is returned.
     NodePtr add_child(NodePtr &parent, const std::shared_ptr<T> &item)
     {
+        // Confirm the tree has been initialized.
+        IS_TRUE(root_);
+
         NodePtr child = std::make_shared<Node<T>>(parent, item);
         IS_TRUE(child);
         parent->add_child(child);
@@ -126,6 +137,8 @@ public:
     // Erases the node and all it's children recursively.
     void erase(NodePtr &node)
     {
+       // Confirm the tree has been initialized.
+       IS_TRUE(root_);
        erase_recursive(node); 
        cleanup_leaves();
     }
@@ -133,6 +146,9 @@ public:
     // Pops the node, returning a valid subtree.
     Tree pop(NodePtr &node)
     {
+        // Confirm the tree has been initialized.
+        IS_TRUE(root_);
+
         // Remove itself from the parent. If the parent has already cleared its 
         // children list, this will do nothing.
         node->parent()->remove_child(node);
@@ -149,7 +165,13 @@ public:
 
     // Return a copy so others are not holding references to stored shared pointers.
     // (Everyone gets their own shared pointer)
-    std::list<NodePtr> leaf_nodes() const { return leaves_; }
+    std::list<NodePtr> leaf_nodes() const 
+    { 
+        // Confirm the tree has been initialized.
+        IS_TRUE(root_);       
+
+        return leaves_; 
+    }
 
     size_t num_leaf_nodes() const { return leaves_.size(); }
 
@@ -157,6 +179,9 @@ public:
     // printable string representing the tree structure.
     std::string display_string(const NodePtr &node = nullptr) const 
     { 
+        // Confirm the tree has been initialized.
+        IS_TRUE(root_);       
+
         if (node)
         {
             return display_string(node, "");
@@ -265,4 +290,6 @@ private:
     }
     
 };
+
+} // namespace data.
 

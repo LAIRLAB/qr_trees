@@ -50,7 +50,7 @@ void test_tree()
 {
     using string = std::string;
     PRINT("Creating root")
-    Tree<string> tree(std::make_shared<string>("1"));
+    data::Tree<string> tree(std::make_shared<string>("1"));
     auto root = tree.root();
     IS_EQUAL(tree.num_leaf_nodes(), 1);
 
@@ -90,7 +90,7 @@ void test_tree()
     IS_EQUAL(tree.num_leaf_nodes(), 2);
     PRINT("\n===After Erased 1.1. TREE PRINT:===\n" << tree.display_string(root));
 
-    Tree<string> subtree = tree.pop(layer1_2);
+    data::Tree<string> subtree = tree.pop(layer1_2);
     IS_EQUAL(tree.num_leaf_nodes(), 1);
     IS_EQUAL(subtree.num_leaf_nodes(), 1);
     IS_EQUAL(*(*subtree.leaf_nodes().begin())->item(), "1.2.1");

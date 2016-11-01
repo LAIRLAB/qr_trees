@@ -74,6 +74,12 @@ public:
     // Access the payload in the node.
     std::shared_ptr<T> item() const { return item_; }
 
+    //
+    // Setters
+    // 
+    void set_parent(const std::shared_ptr<Node> &parent) { parent_ = parent; }
+    void set_item(const std::shared_ptr<T> &item) { item_ = item; }
+
 
 private:
     std::shared_ptr<Node> parent_ = nullptr;
@@ -87,11 +93,17 @@ class Tree
 {
 public:
     using NodePtr = std::shared_ptr<Node<T>>;
-    
+
     Tree(const std::shared_ptr<T> &root_item)
     {
         root_ = std::make_shared<Node<T>>(nullptr, root_item);
         add_leaf(root_);
+    }
+
+    Tree(const NodePtr &root_node)
+    {
+        root_ = root_node;
+        find_leaves(root_);
     }
 
     virtual ~Tree() = default;
@@ -111,33 +123,46 @@ public:
         return child;
     }
 
+    // Erases the node and all it's children recursively.
+    void erase(NodePtr &node)
+    {
+       erase_recursive(node); 
+       cleanup_leaves();
+    }
+
+    // Pops the node, returning a valid subtree.
+    Tree pop(NodePtr &node)
+    {
+        // Remove itself from the parent. If the parent has already cleared its 
+        // children list, this will do nothing.
+        node->parent()->remove_child(node);
+
+        // We may have popped off leaves so clear the leaves list and recurse to 
+        // find the leaves again. 
+        // (We could alternatively recurse the popped tree and remove those from 
+        // the leaves list).
+        leaves_.clear();
+        find_leaves(root_);
+
+        return Tree(node);
+    }
+
     // Return a copy so others are not holding references to stored shared pointers.
     // (Everyone gets their own shared pointer)
     std::list<NodePtr> leaf_nodes() const { return leaves_; }
 
-    // Traverse the tree depth-first and call the ostream operator for each item or payload 
-    // in each node.
-    std::string display_string(NodePtr node = nullptr, const std::string &spacing="") const
-    {
-        if (!node)
+    size_t num_leaf_nodes() const { return leaves_.size(); }
+
+    // Call the ostream operator for each item or payload in each node to generate a 
+    // printable string representing the tree structure.
+    std::string display_string(const NodePtr &node = nullptr) const 
+    { 
+        if (node)
         {
-            node = root_;
+            return display_string(node, "");
         }
-        const std::string endl = "\n";
-
-        std::ostringstream oss;
-        oss << *node->item() << endl;
-        auto children = node->children();
-
-        for (const auto &child : children)
-        {
-            IS_TRUE(child);
-            oss << spacing << "> " << display_string(child, spacing + "  ");
-        }
-
-        return oss.str();
+        return display_string(root_, "");
     }
-
 
 private:
     NodePtr root_ = nullptr;
@@ -149,6 +174,43 @@ private:
     {
         leaves_.push_back(node);
         cleanup_leaves();
+    }
+
+    // Erases the node and all it's children recursively.
+    void erase_recursive(NodePtr &node)
+    {
+        auto children = node->children();
+        // Clear the shared pointers being held.
+        node->children().clear();
+        for (auto &child : children)
+        {
+            erase_recursive(child);
+        }
+        
+        // Remove itself from the parent. If the parent has already cleared its 
+        // children list, this will do nothing.
+        node->parent()->remove_child(node);
+
+        // Clear the shared_ptr to the parent.
+        node->set_parent(nullptr);
+
+        // Clear the shared_ptr to the item payload.
+        node->set_item(nullptr);
+        remove_from_leaves_list(node);
+    }
+
+    // Remove node from leaves list if it is there.
+    void remove_from_leaves_list(NodePtr &node)
+    {
+        leaves_.erase(
+            std::remove_if(leaves_.begin(), leaves_.end(), [&node](const NodePtr &node_cmp)
+                {
+                    IS_TRUE(node_cmp);    
+                    return node == node_cmp;
+                }
+            ), 
+            leaves_.end()
+        );
     }
 
     // Removes any items in the leaves list that have children nodes.
@@ -163,7 +225,43 @@ private:
             ), 
             leaves_.end()
         );
+    }
 
+    // Searches the tree to find leaf nodes and adds them to the leaves list.
+    void find_leaves(const NodePtr &start)
+    {
+        if (start->num_children() == 0)
+        {
+            leaves_.push_back(start);
+        }
+        else
+        {
+            const auto children = start->children();
+            for (const auto &child : children)
+            {
+                IS_TRUE(child);
+                find_leaves(child);
+            }
+        }
+    }
+
+    // Traverse the tree recursively depth-first and call the ostream operator for 
+    // each item or payload in each node.
+    std::string display_string(const NodePtr &node, const std::string &spacing) const
+    {
+        const std::string endl = "\n";
+
+        std::ostringstream oss;
+        oss << *node->item() << endl;
+        auto children = node->children();
+
+        for (const auto &child : children)
+        {
+            IS_TRUE(child);
+            oss << spacing << "> " << display_string(child, spacing + "  ");
+        }
+
+        return oss.str();
     }
     
 };

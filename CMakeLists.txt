@@ -38,7 +38,7 @@ endif (CMAKE_BUILD_TYPE)
 # Build type must be either DEBUG or RELEASE.
 if (CMAKE_BUILD_TYPE STREQUAL "")
   message("No build type specified: forcing to RELEASE.")
-  set(CMAKE_BUILD_TYPE "RELEASE" CACHE STRING "" FORCE)
+  set(CMAKE_BUILD_TYPE "DEBUG" CACHE STRING "" FORCE)
 endif (CMAKE_BUILD_TYPE STREQUAL "")
 
 # Linux bitness type.

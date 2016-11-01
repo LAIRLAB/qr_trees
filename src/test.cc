@@ -1,8 +1,8 @@
-#include <iostream>
 #include <ilqr/tree.hh>
 #include <utils/debug_utils.hh>
 #include <utils/math_utils.hh>
 
+#include <iostream>
 
 Eigen::VectorXd simple_poly(const Eigen::VectorXd &x)
 {
@@ -52,27 +52,51 @@ void test_tree()
     PRINT("Creating root")
     Tree<string> tree(std::make_shared<string>("1"));
     auto root = tree.root();
+    IS_EQUAL(tree.num_leaf_nodes(), 1);
+
     PRINT("adding first child of root");
     auto layer1_1 = tree.add_child(root, std::make_shared<string>("1.1"));
+    IS_EQUAL(tree.num_leaf_nodes(), 1);
+
     PRINT("adding second child of root");
     auto layer1_2 = tree.add_child(root, std::make_shared<string>("1.2"));
+    IS_EQUAL(tree.num_leaf_nodes(), 2);
 
     PRINT("adding first child of 1.1");
     auto layer1_1_1 = tree.add_child(layer1_1, std::make_shared<string>("1.1.1"));
+    IS_EQUAL(tree.num_leaf_nodes(), 2);
+
     PRINT("adding second child of 1.1");
     auto layer1_1_2 = tree.add_child(layer1_1, std::make_shared<string>("1.1.2"));
+    IS_EQUAL(tree.num_leaf_nodes(), 3);
 
     PRINT("adding first child of 1.2");
     auto layer1_2_1 = tree.add_child(layer1_2, std::make_shared<string>("1.2.1"));
+    IS_EQUAL(tree.num_leaf_nodes(), 3);
 
     PRINT("adding third child of root");
     auto layer1_3 = tree.add_child(root, std::make_shared<string>("1.3"));
+    IS_EQUAL(tree.num_leaf_nodes(), 4);
 
     PRINT("adding first child of 1.1.1");
     auto layer1_1_1_1 = tree.add_child(layer1_1_1, std::make_shared<string>("1.1.1.1"));
+    IS_EQUAL(tree.num_leaf_nodes(), 4);
 
     PRINT("\n===TREE PRINT:===\n" << tree.display_string(root));
+    
+    PRINT("\n===Partial TREE PRINT:===\n" << tree.display_string(layer1_1));
 
+    tree.erase(layer1_1);
+    IS_EQUAL(tree.num_leaf_nodes(), 2);
+    PRINT("\n===After Erased 1.1. TREE PRINT:===\n" << tree.display_string(root));
+
+    Tree<string> subtree = tree.pop(layer1_2);
+    IS_EQUAL(tree.num_leaf_nodes(), 1);
+    IS_EQUAL(subtree.num_leaf_nodes(), 1);
+    IS_EQUAL(*(*subtree.leaf_nodes().begin())->item(), "1.2.1");
+
+    PRINT("\n===After Popped 1.2 TREE PRINT:===\n" << tree.display_string(root));
+    PRINT("\n===The Popped 1.2 SUBTREE PRINT:===\n" << subtree.display_string());
 }
 
 

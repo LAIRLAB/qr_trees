@@ -1,6 +1,9 @@
 # Editor files
 *.swp
 
+# For YCM completere for vim
+ycm_jsondb_*
+
 # Build dir
 build/*
 
@@ -13,6 +16,7 @@ tags
 *.lo
 *.o
 *.obj
+*.pyc
 
 # Precompiled Headers
 *.gch

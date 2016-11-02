@@ -13,7 +13,7 @@ PlanNode::PlanNode(int state_dim,
     control_dim_(control_dim)
 {
     // Confirm the probablity is within [0,1].
-    IS_BETWEEN_INCLUSIVE(probablity, 0.0, 1.0);
+    IS_BETWEEN_INCLUSIVE(probability, 0.0, 1.0);
 
     // Initialize the extended-state [x,1] dynamics matrices.
     dynamics_.A = Eigen::MatrixXd::Zero(state_dim + 1, state_dim + 1);
@@ -112,4 +112,10 @@ void PlanNode::set_u(const Eigen::VectorXd &u)
     IS_EQUAL(u.size(), control_dim_);
     u_ = u;
     xu_.bottomRows(control_dim_) = u;
+}
+
+std::ostream& operator<<(std::ostream& os, const PlanNode& node)
+{
+    os << "x: [" << node.x().transpose() << "], u: [" << node.u().transpose() << "]";
+    return os;
 }

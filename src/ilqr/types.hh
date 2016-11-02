@@ -4,9 +4,10 @@
 
 #pragma once
 
-#include <functional>
-
 #include <Eigen/Dense>
+
+#include <functional>
+#include <ostream>
 
 // Dynamics Function Prototype. Takes state, control and returns the next state.
 using DynamicsFunc = std::function<Eigen::VectorXd(Eigen::VectorXd,Eigen::VectorXd)>; 
@@ -45,8 +46,6 @@ struct Cost
 // Each plan node represents a timestep.
 class PlanNode
 {
-friend std::ostream& operator<<(std::ostream& os, const PlanNode& node);
-
 public:
     PlanNode(int state_dim, 
              int control_dim, 
@@ -118,8 +117,5 @@ private:
     Eigen::VectorXd u_star_; 
 };
 
-std::ostream& operator<<(std::ostream& os, const PlanNode& node)
-{
-    os << "x: [" << node.x().transpose() << "], u: [" << node.u().transpose() << "]";
-    return os;
-}
+// Allows the PlanNode to be printed.
+std::ostream& operator<<(std::ostream& os, const PlanNode& node);

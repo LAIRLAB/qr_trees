@@ -59,8 +59,10 @@ public:
     // Quadratic approximation of the cost.
     Cost cost_;
 
-    // Feedback gain matrix, [dim(u)] x [dim(x)]
+    // Feedback gain matrix on the extended-state, [dim(u)] x [dim(x) + 1]
     Eigen::MatrixXd K_; 
+    // Feed-forward control matrix, [dim(u)] x [dim(1)].
+    Eigen::MatrixXd k_; 
 
     // Value matrix in x^T V x. [dim(x) + 1] x [dim(x) + 1]
     Eigen::MatrixXd V_; 

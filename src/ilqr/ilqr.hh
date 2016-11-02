@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 
 #include <memory>
+#include <list>
 #include <vector>
 
 // Shared pointer to a Node in the underlying Tree structure of the iLQR-Tree. Calling ->item()
@@ -48,12 +49,21 @@ public:
     TreeNodePtr root();
 
     // Do a full bellman backup on the tree
-    void bellman_backup();
+    void bellman_tree_backup();
 private:
-    data::Tree<PlanNode> tree_;
-    
     int state_dim_ = 0;
     int control_dim_ = 0;
 
+    data::Tree<PlanNode> tree_;
 
+    const Eigen::MatrixXd ZeroValueMatrix_; 
+
+    // Backups the value matrix and control gains matrix from the children of the node.
+    std::list<TreeNodePtr> backup_to_parents(const std::list<TreeNodePtr> &all_children);
+    // Helper to compute the value matrix for plan_node given a child's V_{t+1} value matrix.
+    // Returns the result and does not store the result in the PlanNode.
+    Eigen::MatrixXd compute_value_matrix(const std::shared_ptr<PlanNode> &node, 
+            const Eigen::MatrixXd &Vt1);
+    // Helper to compute the feedback and feedforward control policies. Stores them in the PlanNode.
+    void compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1);
 };

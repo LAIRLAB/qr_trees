@@ -8,12 +8,15 @@
 namespace data
 {
 
+
 template<typename T>
 class Node 
 {
 public:
-    Node(const std::shared_ptr<Node> &parent, const std::shared_ptr<T> &item) : 
-        parent_(parent), item_(item) { }
+    constexpr static int UNSET_DEPTH = -1;
+
+    Node(const std::shared_ptr<Node> &parent, const std::shared_ptr<T> &item, int depth = UNSET_DEPTH) : 
+        depth_(depth), parent_(parent), item_(item) { }
 
     virtual ~Node() = default;
 
@@ -76,15 +79,20 @@ public:
     std::list<std::shared_ptr<Node>> children() const { return children_; }
     // Access the payload in the node.
     std::shared_ptr<T> item() const { return item_; }
+    // Get the depth of the Node. -1 implies the depth was not set.
+    int depth() const { return depth_; }
 
     //
     // Setters
     // 
     void set_parent(const std::shared_ptr<Node> &parent) { parent_ = parent; }
     void set_item(const std::shared_ptr<T> &item) { item_ = item; }
+    void set_depth(int depth) { depth_ = depth; }
 
 
 private:
+    int depth_ = UNSET_DEPTH; // Depth in the tree.
+
     std::shared_ptr<Node> parent_ = nullptr;
     std::list<std::shared_ptr<Node>> children_ = {};
 
@@ -101,7 +109,7 @@ public:
 
     Tree(const std::shared_ptr<T> &root_item)
     {
-        root_ = std::make_shared<Node<T>>(nullptr, root_item);
+        root_ = std::make_shared<Node<T>>(nullptr, root_item, 0);
         add_leaf(root_);
     }
 
@@ -110,7 +118,8 @@ public:
         root_ = root_node;
         if (root_)
         {
-            find_leaves(root_);
+            // We may need to renumber the depth of the tree if the root node already has children.
+            find_leaves(root_, true, 0);
         }
     }
 
@@ -126,7 +135,7 @@ public:
         // Confirm the tree has been initialized.
         IS_TRUE(root_);
 
-        NodePtr child = std::make_shared<Node<T>>(parent, item);
+        NodePtr child = std::make_shared<Node<T>>(parent, item, parent->depth()+1);
         IS_TRUE(child);
         parent->add_child(child);
         add_leaf(child);
@@ -154,7 +163,7 @@ public:
         node->parent()->remove_child(node);
 
         // We may have popped off leaves so clear the leaves list and recurse to 
-        // find the leaves again. 
+        // find the leaves again.  
         // (We could alternatively recurse the popped tree and remove those from 
         // the leaves list).
         leaves_.clear();
@@ -253,8 +262,15 @@ private:
     }
 
     // Searches the tree to find leaf nodes and adds them to the leaves list.
-    void find_leaves(const NodePtr &start)
+    // If renumber is >= 0, assumes start node is of depth renumber and assigns depths to each of the node in
+    // the tree following start node.
+    void find_leaves(const NodePtr &start, bool renumber = false, int renumber_start = -1) 
     {
+        if (renumber)
+        {
+            start->set_depth(renumber_start);
+        }
+
         if (start->num_children() == 0)
         {
             leaves_.push_back(start);
@@ -265,7 +281,7 @@ private:
             for (const auto &child : children)
             {
                 IS_TRUE(child);
-                find_leaves(child);
+                find_leaves(child, renumber, renumber_start + 1);
             }
         }
     }
@@ -277,13 +293,13 @@ private:
         const std::string endl = "\n";
 
         std::ostringstream oss;
-        oss << *node->item() << endl;
+        oss << "(" << node->depth() << ") " << *node->item() << endl;
         auto children = node->children();
 
         for (const auto &child : children)
         {
             IS_TRUE(child);
-            oss << spacing << "> " << display_string(child, spacing + "  ");
+            oss << spacing << "> " <<  display_string(child, spacing + "  ");
         }
 
         return oss.str();

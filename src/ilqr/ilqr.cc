@@ -88,7 +88,35 @@ TreeNodePtr iLQRTree::root()
 
 void iLQRTree::bellman_tree_backup()
 {
+   // Special case to compute the control policy and value matrices for the leaf nodes.
+   control_and_value_for_leaves();
+
+   // Start at all the leaf nodes (currently assume they are all at the same depth) and work our
+   // way up the tree until we get the root node (single node at depth = 0).
    auto all_children = tree_.leaf_nodes();
+   while (!(all_children.size() == 1 && all_children.front()->depth() == 0))
+   {
+       // For all the children, back up their value function to their parents. 
+       // To work up the tree, the parents become the new children.
+       all_children = backup_to_parents(all_children);
+   } 
+}
+
+void iLQRTree::control_and_value_for_leaves()
+{
+   auto leaf_nodes = tree_.leaf_nodes();
+
+   // Confirm all leaves are at the same depth in the tree. This isn't necessary for the
+   // general algorithm, but we need it for the current implementation.
+   const int FIRST_DEPTH = leaf_nodes.size() > 0 ? leaf_nodes.front()->depth() : -1;
+   for (auto &leaf: leaf_nodes)
+   {
+       IS_EQUAL(leaf->depth(), FIRST_DEPTH);
+       std::shared_ptr<PlanNode> node = leaf->item();
+       // Compute the leaf node's control policy K, k using a Zero Value matrix for the future.
+       compute_control_policy(node, ZeroValueMatrix_);
+       node->V_ = compute_value_matrix(node, ZeroValueMatrix_);
+   }
 }
 
 std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> &all_children)
@@ -96,28 +124,34 @@ std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> 
    // Hash the leaves by their parent so we can process all the children for a parent.    
    std::unordered_map<TreeNodePtr, std::list<TreeNodePtr>> parent_map;
 
-   // Start at the leaves and work up the tree. 
+   // Confirm all children are at the same depth in the tree. This isn't necessary for the
+   // general algorithm, but we need it for the current implementation.
+   const int FIRST_DEPTH = all_children.size() > 0 ? all_children.front()->depth() : -1;
    for (auto &child : all_children)
    {
+       IS_EQUAL(child->depth(), FIRST_DEPTH);
        parent_map[child->parent()].push_back(child);
    }
 
    std::list<TreeNodePtr> parents;
    for (auto &parent_children_pair : parent_map)
    {
-       // Compute the Value matrix (V_t) of the parent by using each child's Value matrix (V_{t+1})
-       // and weighting them by the probability.
-       Eigen::MatrixXd Vt = Eigen::MatrixXd::Zero(state_dim_, state_dim_);
-       std::shared_ptr<PlanNode> parent_plan_node = parent_children_pair.first->item();
+       // Compute the weighted \tilde{V}_{t+1} = \sum_k p_k V_{T+1}^{(k)} matrix by computing the
+       // probability-weighted average 
+       Eigen::MatrixXd Vtilde;
        auto &children = parent_children_pair.second;
        for (auto &child : children)
        {
-           const std::shared_ptr<PlanNode> &child_plan_node = child->item();
-           const double p = child_plan_node->probability_; 
-           const Eigen::MatrixXd Vt_temp = compute_value_matrix(parent_plan_node, child_plan_node->V_);
-           Vt += p*Vt_temp;
+           const std::shared_ptr<PlanNode> &child_node = child->item();
+           Vtilde += child_node->probability_ * child_node->V_;
        }
-       parent_plan_node->V_ = Vt; 
+
+       std::shared_ptr<PlanNode> parent_node = parent_children_pair.first->item();
+       // Compute the parent node's control policy K, k using Vtilde.
+       compute_control_policy(parent_node, Vtilde);
+       // Compute parent's Vt from this the Vtilde (from T+1) and the control policy K,k computed above.
+       parent_node->V_ = compute_value_matrix(parent_node, Vtilde);
+
        parents.push_back(parent_children_pair.first);
    }
 

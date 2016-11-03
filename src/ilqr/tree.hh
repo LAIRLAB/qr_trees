@@ -15,7 +15,7 @@ class Node
 public:
     constexpr static int UNSET_DEPTH = -1;
 
-    Node(const std::shared_ptr<Node> &parent, const std::shared_ptr<T> &item, int depth = UNSET_DEPTH) : 
+    Node(const std::shared_ptr<Node> &parent, const std::shared_ptr<T> &item, int depth) : 
         depth_(depth), parent_(parent), item_(item) { }
 
     virtual ~Node() = default;

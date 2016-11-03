@@ -60,10 +60,16 @@ private:
 
     // Backups the value matrix and control gains matrix from the children of the node.
     std::list<TreeNodePtr> backup_to_parents(const std::list<TreeNodePtr> &all_children);
+
+    // Special case for just the leaves of the tree. We can compute this by giving the leaves
+    // synthetic children with $V_{T+1} = 0$.
+    void control_and_value_for_leaves();
+
     // Helper to compute the value matrix for plan_node given a child's V_{t+1} value matrix.
     // Returns the result and does not store the result in the PlanNode.
     Eigen::MatrixXd compute_value_matrix(const std::shared_ptr<PlanNode> &node, 
             const Eigen::MatrixXd &Vt1);
+
     // Helper to compute the feedback and feedforward control policies. Stores them in the PlanNode.
     void compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1);
 };

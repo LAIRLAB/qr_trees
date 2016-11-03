@@ -3,6 +3,13 @@
 #include <utils/debug_utils.hh>
 #include <utils/math_utils.hh>
 
+namespace
+{
+    // Minimum eigenvalue for the PSD Q and PD R matrices in the quadratic cost.
+    constexpr double Q_MIN_EVAL = 1e-7;
+    constexpr double R_MIN_EVAL = 1e-3;
+} // namespace
+
 PlanNode::PlanNode(int state_dim, 
                    int control_dim, 
                    const DynamicsFunc &dynamics_func, 
@@ -84,9 +91,13 @@ void PlanNode::update_cost()
     cost_.Q.bottomLeftCorner(1, state_dim_) = g.topRows(state_dim_).transpose();
     cost_.Q(state_dim_, state_dim_) = c;
 
+    cost_.Q = math::project_to_psd(cost_.Q, Q_MIN_EVAL);
+
     cost_.P.topRows(state_dim_) = H.topRightCorner(state_dim_, control_dim_);
 
     cost_.R = H.bottomRightCorner(control_dim_, control_dim_);
+    cost_.R = math::project_to_psd(cost_.R, R_MIN_EVAL);
+
     cost_.b_u = g.bottomRows(control_dim_);
 }
 

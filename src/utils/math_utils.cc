@@ -2,6 +2,8 @@
 
 #include <utils/debug_utils.hh>
 
+#include <Eigen/Eigenvalues>
+
 namespace math 
 {
 
@@ -112,6 +114,52 @@ Eigen::MatrixXd hessian(
     }
 
     return hessian;
+}
+
+Eigen::MatrixXd project_to_psd(const Eigen::MatrixXd &symmetric_mat, const double min_eigval)
+{
+    // Cheap check to confirm matrix is square.
+    IS_EQUAL(symmetric_mat.rows(), symmetric_mat.cols());
+
+    const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(symmetric_mat);
+    Eigen::MatrixXd evals = es.eigenvalues().asDiagonal();
+    const Eigen::MatrixXd evecs = es.eigenvectors();
+
+    // Indices of eigen values that are less than the minimum eigenvalue threshold.
+    int num_failed_evals = 0;
+    for (int i = 0; i < evals.size(); ++i)
+    {
+        if (evals(i,i) < min_eigval)
+        {
+            ++num_failed_evals;
+            evals(i,i) = min_eigval;
+        }
+    }
+    // If we didn't have eigenvalues less than the minimum threshold, then return the original
+    // matrix.
+    if (num_failed_evals == 0)
+    {
+        return symmetric_mat;
+    }
+
+    // We can reconstruct with P\inv D P = P^T D P if P is orthonormal.
+    const Eigen::MatrixXd projection = evecs.transpose() * evals * evecs;
+    return projection;
+}
+
+void check_psd(const Eigen::MatrixXd &symmetric_mat, const double min_eigval)
+{
+    // Cheap check to confirm matrix is square.
+    IS_EQUAL(symmetric_mat.rows(), symmetric_mat.cols());
+
+    const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(symmetric_mat, Eigen::EigenvaluesOnly);
+    const auto evals = es.eigenvalues();
+
+    for (int i = 0; i < evals.size(); ++i)
+    {
+        // Throw an exception if this is not true.
+        IS_GREATER_EQUAL(evals(i), min_eigval);
+    }
 }
 
 } // namespace math 

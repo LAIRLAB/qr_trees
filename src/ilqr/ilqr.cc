@@ -86,6 +86,51 @@ TreeNodePtr iLQRTree::root()
     return tree_.root();
 }
 
+void iLQRTree::forward_pass(const double alpha)
+{
+    // Process from the end of the list, but start at the beginning.
+    std::list<std::pair<TreeNodePtr, Eigen::MatrixXd>> to_process;
+    // First x linearization is just from the root, not from rolling out dynamics.
+    Eigen::VectorXd xt = tree_.root()->item()->x();
+    TreeNodePtr tree_node = tree_.root();
+    to_process.emplace_front(tree_.root(), xt);
+    while (!to_process.empty())
+    {
+        auto &process_pair = to_process.back();
+        //TODO: Implement line search over this function for the forward pass.
+        const Eigen::MatrixXd xt1 = forward_node(process_pair.first->item(), process_pair.second, alpha); 
+        for (auto child : process_pair.first->children())
+        {
+            to_process.emplace_front(child, xt1);
+        }
+
+        to_process.pop_back();
+    }
+}
+
+Eigen::MatrixXd iLQRTree::forward_node(std::shared_ptr<PlanNode> node, 
+        const Eigen::MatrixXd &xt, 
+        const double alpha)
+{
+    // Compute difference from where the node is at now during the forward pass versus the 
+    // linearization point from before.
+    const Eigen::VectorXd dx_t = (xt - node->x());
+    const Eigen::VectorXd du_t = node->K_ * dx_t + node->k_;
+
+    // Set the new linearization point at the new xt for the node.
+    node->set_x(xt);
+    node->set_u(alpha*du_t + node->u());
+    node->update_dynamics(); 
+    node->update_cost();
+
+    // The upper right corner of A has x_{t+1} = f(x_t,u_t), i.e. the evaluation of the dynamics at x_t,u_t
+    Eigen::VectorXd xt1 = Eigen::VectorXd::Zero(state_dim_+1);
+    xt1.topRows(state_dim_) = node->dynamics_.A.topRightCorner(state_dim_, 1);
+    return xt1;
+}
+
+
+
 void iLQRTree::bellman_tree_backup()
 {
    // Special case to compute the control policy and value matrices for the leaf nodes.

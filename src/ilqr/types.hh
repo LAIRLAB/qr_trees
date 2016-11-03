@@ -88,6 +88,8 @@ public:
     //
     // Get and set the forward iLQR pass x and u.
     //
+    
+    // Set the state with a [dim(x)]  (note, not extended) vector.
     void set_x(const Eigen::VectorXd &x);
     void set_u(const Eigen::VectorXd &u);
     // Returns the extended-state [x, 1] for the iLQR forward pass.
@@ -95,9 +97,18 @@ public:
     // Returns the control [u] for the iLQR forward pass.
     const Eigen::VectorXd& u() const { return u_; };
 
+    const DynamicsFunc& dynamics_func() const { return dynamics_func_; };
+    const CostFunc& cost_func() const { return cost_func_; };
+
+    void set_dynamics_func(const DynamicsFunc& dynamics_func) { dynamics_func_ = dynamics_func; };
+    void set_cost_func(const CostFunc& cost_func) { cost_func_ = cost_func; };
+
 private:
     int state_dim_;
     int control_dim_;
+
+    DynamicsFunc dynamics_func_;
+    CostFunc cost_func_;
 
     // Helper types needed to call the math utils functions.
     using DynamicsWrapper = std::function<Eigen::VectorXd(const Eigen::VectorXd&)>;

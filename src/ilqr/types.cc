@@ -17,7 +17,9 @@ PlanNode::PlanNode(int state_dim,
                    const double probability) :
     probability_(probability),
     state_dim_(state_dim),
-    control_dim_(control_dim)
+    control_dim_(control_dim),
+    dynamics_func_(dynamics_func),
+    cost_func_(cost_func)
 {
     // Confirm the probablity is within [0,1].
     IS_BETWEEN_INCLUSIVE(probability, 0.0, 1.0);

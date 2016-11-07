@@ -5,6 +5,13 @@
 namespace math
 {
 
+// Returns true if the matrices are element-wise equal within tolerance.
+bool is_equal(const Eigen::MatrixXd &mat1, const Eigen::MatrixXd &mat2, const double tol=1e-12);
+
+// Returns true if a matrix is equal to its transpose. Returns false otherwise. 
+// Will likely crash if input is non-square (undefined behavior for non-square).
+bool is_symmetric(const Eigen::MatrixXd &mat);
+
 // Computes the Gradient using finite differencing.
 Eigen::VectorXd gradient(
         const std::function<double(const Eigen::VectorXd&)> &func, 

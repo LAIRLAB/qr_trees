@@ -4,8 +4,25 @@
 
 #include <Eigen/Eigenvalues>
 
+namespace
+{
+    constexpr double TOL = 1e-7;
+
+
+}
+
 namespace math 
 {
+
+bool is_equal(const Eigen::MatrixXd &mat1, const Eigen::MatrixXd &mat2, const double tol)
+{
+    return ((mat1 - mat2).array().abs() < tol).all();
+}
+
+bool is_symmetric(const Eigen::MatrixXd &mat)
+{
+    return math::is_equal(mat, mat.transpose(), TOL);
+}
 
 Eigen::VectorXd gradient(
         const std::function<double(const Eigen::VectorXd&)> &func, 
@@ -121,13 +138,17 @@ Eigen::MatrixXd project_to_psd(const Eigen::MatrixXd &symmetric_mat, const doubl
     // Cheap check to confirm matrix is square.
     IS_EQUAL(symmetric_mat.rows(), symmetric_mat.cols());
 
+    // O(n^2) check to make sure that the matrix is symmetric.
+    IS_TRUE(math::is_symmetric(symmetric_mat));
+
     const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(symmetric_mat);
     Eigen::MatrixXd evals = es.eigenvalues().asDiagonal();
     const Eigen::MatrixXd evecs = es.eigenvectors();
 
     // Indices of eigen values that are less than the minimum eigenvalue threshold.
     int num_failed_evals = 0;
-    for (int i = 0; i < evals.size(); ++i)
+    const int num_evals = evals.rows();
+    for (int i = 0; i < num_evals; ++i)
     {
         if (evals(i,i) < min_eigval)
         {
@@ -142,17 +163,20 @@ Eigen::MatrixXd project_to_psd(const Eigen::MatrixXd &symmetric_mat, const doubl
         return symmetric_mat;
     }
 
-    // We can reconstruct with P\inv D P = P^T D P if P is orthonormal.
-    const Eigen::MatrixXd projection = evecs.transpose() * evals * evecs;
+    // We can reconstruct with P D P\inv = P D P^T if P is orthonormal.
+    const Eigen::MatrixXd projection = evecs * evals * evecs.transpose() ;
     return projection;
 }
 
-void check_psd(const Eigen::MatrixXd &symmetric_mat, const double min_eigval)
+void check_psd(const Eigen::MatrixXd &mat, const double min_eigval)
 {
     // Cheap check to confirm matrix is square.
-    IS_EQUAL(symmetric_mat.rows(), symmetric_mat.cols());
+    IS_EQUAL(mat.rows(), mat.cols());
 
-    const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(symmetric_mat, Eigen::EigenvaluesOnly);
+    // O(n^2) check to make sure that the matrix is symmetric.
+    IS_TRUE(math::is_symmetric(mat));
+
+    const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(mat, Eigen::EigenvaluesOnly);
     const auto evals = es.eigenvalues();
 
     for (int i = 0; i < evals.size(); ++i)

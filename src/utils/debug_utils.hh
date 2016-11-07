@@ -67,3 +67,12 @@
 #define IS_LESS_EQUAL(X,Y) {\
     if (X > Y) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") LESS EQUAL than (" << Y << ")."; throw std::logic_error(ss.str()); } \
 }
+
+// Useful for unit testing.
+#define DOES_THROW(X) {\
+    try { X; std::ostringstream ss; ss << FILE_LINE << "\n\t\tGot no exception when EXPECTED expection."; throw std::logic_error(ss.str()); } catch (...) { }; \
+}
+
+#define DOES_NOT_THROW(X) {\
+    try { X; } catch (std::exception &e) { std::ostringstream ss; ss << FILE_LINE << "\n\t\tGot exception when expected NONE: \n\t\t " << e.what(); throw std::logic_error(ss.str()); }; \
+}

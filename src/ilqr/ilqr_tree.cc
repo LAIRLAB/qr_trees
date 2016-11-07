@@ -1,4 +1,4 @@
-#include <ilqr/ilqr.hh>
+#include <ilqr/ilqr_tree.hh>
 
 #include <utils/debug_utils.hh>
 

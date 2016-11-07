@@ -149,6 +149,11 @@ public:
        // Confirm the tree has been initialized.
        IS_TRUE(root_);
        erase_recursive(node); 
+        
+       // This results in anothere recursive pass through the tree, but it is easier to make sure
+       // that it is implemented correctly.
+       leaves_.clear();
+       find_leaves(root_, false);
        cleanup_leaves();
     }
 
@@ -230,21 +235,6 @@ private:
 
         // Clear the shared_ptr to the item payload.
         node->set_item(nullptr);
-        remove_from_leaves_list(node);
-    }
-
-    // Remove node from leaves list if it is there.
-    void remove_from_leaves_list(NodePtr &node)
-    {
-        leaves_.erase(
-            std::remove_if(leaves_.begin(), leaves_.end(), [&node](const NodePtr &node_cmp)
-                {
-                    IS_TRUE(node_cmp);    
-                    return node == node_cmp;
-                }
-            ), 
-            leaves_.end()
-        );
     }
 
     // Removes any items in the leaves list that have children nodes.

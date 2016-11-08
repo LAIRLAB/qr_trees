@@ -48,18 +48,22 @@ Eigen::VectorXd gradient(
 
     return gradient;
 }
+
 Eigen::MatrixXd jacobian(
         const std::function<Eigen::VectorXd(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, const double delta)
 {
     IS_GREATER(delta, 0);
 
-    const int dim = pt.size();
-    IS_GREATER(dim, 0);
+    const int in_dim = pt.size();
+    IS_GREATER(in_dim, 0);
 
-    Eigen::MatrixXd jacobian(dim, dim);
+    const int out_dim = func(pt).size();
+    IS_GREATER(out_dim, 0);
 
-    for (int i = 0; i < dim; ++i)
+    Eigen::MatrixXd jacobian(out_dim, in_dim);
+
+    for (int i = 0; i < in_dim; ++i)
     {
         Eigen::VectorXd pt_positive = pt;
         pt_positive[i] += delta;

@@ -12,19 +12,24 @@ bool is_equal(const Eigen::MatrixXd &mat1, const Eigen::MatrixXd &mat2, const do
 // Will likely crash if input is non-square (undefined behavior for non-square).
 bool is_symmetric(const Eigen::MatrixXd &mat);
 
-// Computes the Gradient using finite differencing.
+// Computes the Gradient of func() using finite differencing around pt. The gradient has the same dimensions as the
+// input for func(), which should be the same as the dimension of pt.
 Eigen::VectorXd gradient(
         const std::function<double(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, 
         const double delta = 1e-3);
 
-// Computes the Jacobian using finite differencing.
+// Computes the Jacobian of func() using finite differencing around pt. Jacobian has dimension [output_dim x input_dim]
+// where output_dim is the dimension of the output of func() and input_dim is the input dimension of
+// func(), which should be same as the dimension of pt.
 Eigen::MatrixXd jacobian(
         const std::function<Eigen::VectorXd(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, 
         const double delta = 1e-3);
 
-// Computes the Hessian using finite differencing.
+// Computes the Hessian of func() using finite differencing around pt. The Hessian has dimension [input_dim x input_dim]
+// where input_dim is the dimension of the input for func(), which should be the same as the
+// dimension of pt.
 Eigen::MatrixXd hessian(
         const std::function<double(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, 

@@ -21,7 +21,7 @@
 }
 
 #define IS_ALMOST_EQUAL(X,Y,EPS) {\
-    if (std::abs(X - Y) <= EPS) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") ALMOST EQUAL to (" << Y << ") with Eps " << EPS; throw std::logic_error(ss.str()); } \
+    if (std::abs(X - Y) > EPS) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected value (" << X << ") ALMOST EQUAL to (" << Y << ") with Eps " << EPS; throw std::logic_error(ss.str()); } \
 }
 
 #define IS_NOT_EQUAL(X,Y) {\

@@ -76,7 +76,7 @@ if (OPENMP_FOUND)
 ENDIF(OPENMP_FOUND)
 
 if (CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-  set(Extra_CXX_FLAGS "${Extra_CXX_FLAGS} -ggdb -frounding-math")
+  set(Extra_CXX_FLAGS "${Extra_CXX_FLAGS} -ggdb")
 elseif (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   set(Extra_CXX_FLAGS "${Extra_CXX_FLAGS} -O3")
 else (CMAKE_BUILD_TYPE STREQUAL "DEBUG")

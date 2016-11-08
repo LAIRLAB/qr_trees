@@ -2,8 +2,8 @@
 
 #include <utils/debug_utils.hh>
 
-#include <algorithm>
 #include <iterator>
+#include <numeric>
 #include <unordered_map>
 
 namespace

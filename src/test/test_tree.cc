@@ -18,17 +18,6 @@ namespace
                     return test_node == node;
                 });
     }
-
-    // Helper function to print the values inside a list of nodes.
-    void print_nodes(const std::list<TreeType::NodePtr> &node_list)
-    {
-        std::ostringstream oss;
-        for (const auto &node : node_list)
-        {
-            oss << *(node->item()) << ", ";
-        }
-        PRINT(oss.str());
-    }
 }
 
 void test_tree()

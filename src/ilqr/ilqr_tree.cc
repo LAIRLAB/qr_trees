@@ -13,6 +13,9 @@ namespace
 
 } // namespace
 
+namespace ilqr
+{
+
 iLQRTree::iLQRTree(int state_dim, int control_dim)
     : state_dim_(state_dim),
       control_dim_(control_dim),
@@ -250,3 +253,5 @@ void iLQRTree::compute_control_policy(std::shared_ptr<PlanNode> &node, const Eig
     node->K_ = -1.0 * inv_cntrl_term * (P.transpose() + B.transpose() * Vt1 * A);
     node->k_ = -1.0 * inv_cntrl_term * b_u; 
 }
+
+} // namespace ilqr

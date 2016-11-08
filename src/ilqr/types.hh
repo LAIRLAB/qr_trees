@@ -9,11 +9,14 @@
 #include <functional>
 #include <ostream>
 
+namespace ilqr 
+{
+
 // Dynamics Function Prototype. Takes state, control and returns the next state.
-using DynamicsFunc = std::function<Eigen::VectorXd(Eigen::VectorXd,Eigen::VectorXd)>; 
+using DynamicsFunc = std::function<Eigen::VectorXd(const Eigen::VectorXd&,const Eigen::VectorXd&)>; 
 
 // Cost Function Prototype. Takes state, control and returns a real-valued cost.
-using CostFunc = std::function<double(Eigen::VectorXd,Eigen::VectorXd)>; 
+using CostFunc = std::function<double(const Eigen::VectorXd&,const Eigen::VectorXd&)>; 
 
 // Linearized dynamics parameters in terms of the extended-state [x, 1].
 struct Dynamics
@@ -131,4 +134,7 @@ private:
 };
 
 // Allows the PlanNode to be printed.
-std::ostream& operator<<(std::ostream& os, const PlanNode& node);
+std::ostream& operator<<(std::ostream& os, const ilqr::PlanNode& node);
+
+} // namespace ilqr
+

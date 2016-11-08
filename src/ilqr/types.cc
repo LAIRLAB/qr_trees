@@ -10,6 +10,10 @@ namespace
     constexpr double R_MIN_EVAL = 1e-3;
 } // namespace
 
+namespace ilqr
+{
+
+
 PlanNode::PlanNode(int state_dim, 
                    int control_dim, 
                    const DynamicsFunc &dynamics_func, 
@@ -132,3 +136,5 @@ std::ostream& operator<<(std::ostream& os, const PlanNode& node)
     os << "x: [" << node.x().transpose() << "], u: [" << node.u().transpose() << "]";
     return os;
 }
+
+} // namespace ilqr

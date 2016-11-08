@@ -13,11 +13,13 @@
 #include <list>
 #include <vector>
 
+namespace ilqr
+{
+
 // Shared pointer to a Node in the underlying Tree structure of the iLQR-Tree. Calling ->item()
 // returns a shared pointer to the PlanNode that holds the state/control/dynamics/etc.
 // information.
 using TreeNodePtr = std::shared_ptr<data::Node<PlanNode>>;
-
 
 class iLQRTree 
 {
@@ -85,3 +87,5 @@ private:
     // Helper to compute the feedback and feedforward control policies. Stores them in the PlanNode.
     void compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1);
 };
+
+} // namespace ilqr

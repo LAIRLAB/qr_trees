@@ -5,7 +5,7 @@
 #pragma once
 
 #include <ilqr/tree.hh>
-#include <ilqr/types.hh>
+#include <lqr/lqr_types.hh>
 
 #include <Eigen/Dense>
 
@@ -13,7 +13,7 @@
 #include <list>
 #include <vector>
 
-namespace ilqr
+namespace lqr
 {
 
 // Shared pointer to a Node in the underlying Tree structure of the iLQR-Tree. Calling ->item()
@@ -21,11 +21,11 @@ namespace ilqr
 // information.
 using TreeNodePtr = std::shared_ptr<data::Node<PlanNode>>;
 
-class iLQRTree 
+class LQRTree 
 {
 public:
-    iLQRTree(int state_dim, int control_dim);
-    virtual ~iLQRTree() = default;
+    LQRTree(int state_dim, int control_dim);
+    virtual ~LQRTree() = default;
 
     // Construct a PlanNode which represents the dynamics, cost functions as well as the state
     // and control policy at a specific time step along the tree. Nominal state and control inputs
@@ -90,4 +90,4 @@ private:
     void compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1);
 };
 
-} // namespace ilqr
+} // namespace lqr

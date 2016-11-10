@@ -1,0 +1,52 @@
+// 
+// Implements traditional LQR for linear dynamics and cost.
+//
+
+#pragma once
+
+#include <vector>
+
+#include <Eigen/Dense>
+
+namespace lqr
+{
+
+struct StateCost
+{
+    StateCost(Eigen::VectorXd state, Eigen::VectorXd control, double cost) : x(state), u(control), c(cost) {}
+    Eigen::VectorXd x;
+    Eigen::VectorXd u;
+    double c;
+};
+
+class LQR
+{
+public:
+
+    LQR(const std::vector<Eigen::MatrixXd> &As, 
+        const std::vector<Eigen::MatrixXd> &Bs,
+        const std::vector<Eigen::MatrixXd> &Qs,
+        const std::vector<Eigen::MatrixXd> &Rs);
+
+    LQR(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B,
+        const Eigen::MatrixXd &Q, const Eigen::MatrixXd &R, 
+        const int T);
+
+    void solve();
+
+    std::vector<StateCost> forward_pass(const Eigen::VectorXd &x0) const;
+
+private:
+    int state_dim_ = -1;
+    int control_dim_  = -1;
+
+    std::vector<Eigen::MatrixXd> As_; 
+    std::vector<Eigen::MatrixXd> Bs_;
+    std::vector<Eigen::MatrixXd> Qs_; 
+    std::vector<Eigen::MatrixXd> Rs_;
+
+    std::vector<Eigen::MatrixXd> Ks_;
+};
+
+} // namespace lqr
+

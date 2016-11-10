@@ -1,4 +1,4 @@
-#include <ilqr/types.hh>
+#include <lqr/lqr_types.hh>
 
 #include <utils/debug_utils.hh>
 #include <utils/math_utils.hh>
@@ -10,7 +10,7 @@ namespace
     constexpr double R_MIN_EVAL = 1e-3;
 } // namespace
 
-namespace ilqr
+namespace lqr
 {
 
 

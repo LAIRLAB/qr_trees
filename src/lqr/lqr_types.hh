@@ -9,7 +9,7 @@
 #include <functional>
 #include <ostream>
 
-namespace ilqr 
+namespace lqr 
 {
 
 // Dynamics Function Prototype. Takes state, control and returns the next state.
@@ -138,7 +138,7 @@ private:
 };
 
 // Allows the PlanNode to be printed.
-std::ostream& operator<<(std::ostream& os, const ilqr::PlanNode& node);
+std::ostream& operator<<(std::ostream& os, const lqr::PlanNode& node);
 
 } // namespace ilqr
 

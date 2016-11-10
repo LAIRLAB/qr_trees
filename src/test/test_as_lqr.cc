@@ -3,7 +3,9 @@
 //
 
 #include <ilqr/ilqr_tree.hh>
+#include <lqr/LQR.hh>
 #include <utils/debug_utils.hh>
+#include <utils/math_utils.hh>
 
 namespace
 {
@@ -33,7 +35,7 @@ ilqr::CostFunc create_quadratic_cost(const Eigen::MatrixXd &Q, const Eigen::Matr
         IS_EQUAL(Q.rows(), state_dim);
         IS_EQUAL(R.rows(), control_dim);
         IS_EQUAL(R.cols(), control_dim);
-        Eigen::VectorXd cost = (x.transpose()*Q*x + u.transpose()*R*u);
+        Eigen::VectorXd cost = 0.5*(x.transpose()*Q*x + u.transpose()*R*u);
         IS_EQUAL(cost.size(), 1);
         return cost(0);
     };
@@ -45,49 +47,53 @@ ilqr::CostFunc create_quadratic_cost(const Eigen::MatrixXd &Q, const Eigen::Matr
 void simple_lqr()
 {
     // Time horizon.
-    const int T = 10;
+    constexpr int T = 6;
     // State and control dimensions.
-    const int state_dim = 3;
-    const int control_dim = 2;
+    constexpr int state_dim = 3;
+    constexpr int control_dim = 3;
 
     // Define the dynamics.
     Eigen::MatrixXd A = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    A(1, 1) = -0.5;
-    A(2, 2) = 0.25;
+    //A(1, 1) = -0.5;
+    //A(2, 2) = 0.25;
     Eigen::MatrixXd B = Eigen::MatrixXd::Identity(state_dim, control_dim);
-    B(0, 1) = 0.25;
-    B(1, 1) = -0.3;
-    B(2, 0) = 0.5;
-    B(2, 1) = -0.1;
+    //B(0, 1) = 0.25;
+    //B(1, 1) = -0.3;
+    //B(2, 0) = 0.5;
+    //B(2, 1) = -0.1;
     const ilqr::DynamicsFunc linear_dyn = create_linear_dynamics(A, B);
 
     // Define the cost.
     Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    Q(0, 0) = 5.0;
-    Q(2, 2) = 10.0;
+    //Q(0, 0) = 5.0;
+    //Q(2, 2) = 10.0;
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(control_dim, control_dim);
-    R(0, 0) = 0.1;
-    R(1, 1) = 1.0;
+    //R(0, 0) = 0.1;
+    //R(1, 1) = 1.0;
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R);
 
     // Create a list of initial states for the iLQR. 
     Eigen::VectorXd x0(state_dim);
     x0 << 3, 2, 1;
+    //x0.setZero();
     std::vector<Eigen::VectorXd> xstars(T);
     std::vector<Eigen::VectorXd> ustars(T);
     Eigen::VectorXd xt = x0;
     for (int t = 0; t < T; ++t)
     {
-        Eigen::VectorXd ut = Eigen::VectorXd::Random(control_dim);
+        Eigen::VectorXd ut = 0.1*Eigen::VectorXd::Ones(control_dim);
+        //ut.setZero();
         xstars[t] = xt;
         ustars[t] = ut;
         //xt = A*xt + B*ut;
         xt = linear_dyn(xt, ut);
+        //xt = x0;
     }
 
     // Add them to the tree.
     ilqr::iLQRTree ilqr_tree(state_dim, control_dim); 
     ilqr::TreeNodePtr last_tree_node = nullptr;
+    std::vector<ilqr::TreeNodePtr> tree_nodes;
     for (int t = 0; t < T; ++t)
     {
         // Everything has probability 1.0 since we are making a chain.
@@ -102,6 +108,104 @@ void simple_lqr()
             IS_EQUAL(new_nodes.size(), 1);
             last_tree_node = new_nodes[0];
         }
+        tree_nodes.push_back(last_tree_node);
+    }
+
+    // Compute the true LQR result.
+    lqr::LQR lqr(A, B, Q, R, T);
+    lqr.solve();
+    const std::vector<lqr::StateCost> true_lqr_states = lqr.forward_pass(xstars[0]);
+
+    for (int i = 0; i < 1; ++i)
+    {
+        if (i % 1 == 0)
+        {
+            for (int t = 0; t < T; ++t)
+            {
+                auto plan_node = tree_nodes[t]->item();
+                const auto node_x = plan_node->x().topRows(state_dim);
+                const auto true_x = true_lqr_states[t].x;
+                const auto node_u = plan_node->u();
+                const auto true_u = true_lqr_states[t].u;
+                WARN(i << ",t=" << t << ", xtrue: " << true_x.transpose());
+                WARN("    " << t << ", xtree: " << node_x.transpose());
+                WARN(i << ",t=" << t << ", utrue: " << node_u.transpose());
+                WARN("    " << t << ", utree: " << true_u.transpose());
+            }
+            WARN("\n")
+        }
+        ilqr_tree.bellman_tree_backup();
+        ilqr_tree.forward_pass(1e0);
+    }
+    int i = 1;
+    auto plan_node = tree_nodes[T-i]->item();
+    WARN("x[T-" << i << "]: " << plan_node->x().transpose());
+    WARN("b_u[T-" << i << "]: " << plan_node->cost_.b_u.transpose());
+    WARN("K[T-" << i << "]\n "  << plan_node->K_);
+    WARN("k[T-" << i << "]: " << plan_node->k_.transpose());
+    WARN("V[T-" << i << "]\n" << plan_node->V_)
+    WARN("Q[T-" << i << "]\n" << plan_node->cost_.Q)
+    ilqr_tree.forward_pass(1e0);
+
+    /*
+    // Since this is with linear dynamics and quadratic cost, this should converge 
+    // (to the LQR solution).
+    std::vector<Eigen::VectorXd> xs;
+    for (int i = 0; i < 2; ++i)
+    {
+        ilqr_tree.bellman_tree_backup();
+        ilqr_tree.forward_pass(1e0);
+
+        Eigen::VectorXd x_diff(T);
+        for (int t = 0; t < T; ++t)
+        {
+            auto plan_node = tree_nodes[t]->item();
+            const auto node_x = plan_node->x().topRows(state_dim);
+            const auto true_x = true_lqr_states[t].first;
+            Eigen::VectorXd diff = (node_x - true_x); 
+            if (i != 0)
+            {
+                //Eigen::VectorXd diff = (plan_node->x().topRows(state_dim) - xs[t]);
+                //x_diff[t] = diff.norm();
+            }
+            else
+            {
+                xs.resize(T);
+                //x_diff[t] = 9999999;
+            }
+            x_diff[t] = diff.norm();
+            xs[t] = plan_node->x().topRows(state_dim);
+            WARN(i << ",t=" << t << ", xtrue: " << true_x.transpose());
+            WARN("    " << t << ", xtree: " << node_x.transpose());
+        }
+        WARN(i << ", xdiff: " << x_diff.transpose());
+    }
+    */
+
+
+    Eigen::MatrixXd Qaug = Eigen::MatrixXd::Zero(state_dim+1, state_dim+1);
+    Qaug.topLeftCorner(state_dim, state_dim) = Q;
+    Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim+1, state_dim+1);
+    for (int t = T-1; t > 0; t--)
+    {
+        auto plan_node = tree_nodes[t]->item();
+        //WARN("(" << t << ") Node K: \n" << plan_node->K_);
+        //WARN("      Node k: " << plan_node->k_.transpose());
+
+        //// Check the Value function matrix and the control policy.
+        //WARN("True Q: \n" << Qaug);
+        //WARN("Node V: \n" << plan_node->V_) 
+        //WARN("Node Q: \n" << plan_node->cost_.Q) 
+
+        //WARN("\nTrue R: \n" << R);
+        //WARN("Node R: \n" << plan_node->cost_.R) 
+        //WARN("Node P: \n" << plan_node->cost_.P) 
+
+        //IS_TRUE(math::is_equal(plan_node->V_, Qaug));
+        
+        // Check the control policy matches the true LQR backup.
+        
+        //break;
     }
 
 }

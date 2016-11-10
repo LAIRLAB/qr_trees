@@ -6,10 +6,11 @@ namespace math
 {
 
 // Returns true if the matrices are element-wise equal within tolerance.
+// Throws an exception if the two matrices are of different sizes.
 bool is_equal(const Eigen::MatrixXd &mat1, const Eigen::MatrixXd &mat2, const double tol=1e-12);
 
 // Returns true if a matrix is equal to its transpose. Returns false otherwise. 
-// Will likely crash if input is non-square (undefined behavior for non-square).
+// Throws an exception if the matrix is not square.
 bool is_symmetric(const Eigen::MatrixXd &mat);
 
 // Computes the Gradient of func() using finite differencing around pt. The gradient has the same dimensions as the
@@ -17,7 +18,7 @@ bool is_symmetric(const Eigen::MatrixXd &mat);
 Eigen::VectorXd gradient(
         const std::function<double(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, 
-        const double delta = 1e-3);
+        const double delta = 1e-2);
 
 // Computes the Jacobian of func() using finite differencing around pt. Jacobian has dimension [output_dim x input_dim]
 // where output_dim is the dimension of the output of func() and input_dim is the input dimension of
@@ -25,7 +26,7 @@ Eigen::VectorXd gradient(
 Eigen::MatrixXd jacobian(
         const std::function<Eigen::VectorXd(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, 
-        const double delta = 1e-3);
+        const double delta = 1e-2);
 
 // Computes the Hessian of func() using finite differencing around pt. The Hessian has dimension [input_dim x input_dim]
 // where input_dim is the dimension of the input for func(), which should be the same as the
@@ -33,7 +34,7 @@ Eigen::MatrixXd jacobian(
 Eigen::MatrixXd hessian(
         const std::function<double(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, 
-        const double delta = 1e-3);
+        const double delta = 1e-2);
 
 // Projects a symmetric matrix onto the PSD (positive semi-definite) cone by bumping up any 
 // eigenvalues <= 0 to min_eigval.  If min_eigval is 0 this projects onto the boundary of the PSD cone.

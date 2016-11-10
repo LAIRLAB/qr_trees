@@ -1,4 +1,4 @@
-#include <ilqr/ilqr_tree.hh>
+#include <lqr/lqr_tree.hh>
 
 #include <utils/debug_utils.hh>
 
@@ -13,17 +13,17 @@ namespace
 
 } // namespace
 
-namespace ilqr
+namespace lqr
 {
 
-iLQRTree::iLQRTree(int state_dim, int control_dim)
+LQRTree::LQRTree(int state_dim, int control_dim)
     : state_dim_(state_dim),
       control_dim_(control_dim),
       ZERO_VALUE_MATRIX_(Eigen::MatrixXd::Zero(state_dim + 1, state_dim + 1))
 {
 }
 
-std::shared_ptr<PlanNode> iLQRTree::make_plan_node(const Eigen::VectorXd &x_star, 
+std::shared_ptr<PlanNode> LQRTree::make_plan_node(const Eigen::VectorXd &x_star, 
                                 const Eigen::VectorXd &u_star, 
                                 const DynamicsFunc &dynamics_func, 
                                 const CostFunc &cost_func,
@@ -49,19 +49,19 @@ std::shared_ptr<PlanNode> iLQRTree::make_plan_node(const Eigen::VectorXd &x_star
     return plan_node;
 }
 
-TreeNodePtr iLQRTree::add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd &u_star, 
+TreeNodePtr LQRTree::add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd &u_star, 
         const DynamicsFunc &dynamics_func, const CostFunc &cost_func)
 {
     return add_root(make_plan_node(x_star, u_star, dynamics_func, cost_func, 1.0)); 
 }
 
-TreeNodePtr iLQRTree::add_root(const std::shared_ptr<PlanNode> &plan_node)
+TreeNodePtr LQRTree::add_root(const std::shared_ptr<PlanNode> &plan_node)
 {
     tree_ = data::Tree<PlanNode>(plan_node);
     return tree_.root();
 }
 
-std::vector<TreeNodePtr> iLQRTree::add_nodes(const std::vector<std::shared_ptr<PlanNode>> &plan_nodes, 
+std::vector<TreeNodePtr> LQRTree::add_nodes(const std::vector<std::shared_ptr<PlanNode>> &plan_nodes, 
         TreeNodePtr &parent)
 {
     // Confirm the probabilities in the plan nodes sum to 1.
@@ -84,12 +84,12 @@ std::vector<TreeNodePtr> iLQRTree::add_nodes(const std::vector<std::shared_ptr<P
     return children;
 }
 
-TreeNodePtr iLQRTree::root()
+TreeNodePtr LQRTree::root()
 {
     return tree_.root();
 }
 
-void iLQRTree::forward_pass(const double alpha)
+void LQRTree::forward_pass(const double alpha)
 {
     // Process from the end of the list, but start at the beginning.
     std::list<std::pair<TreeNodePtr, Eigen::MatrixXd>> to_process;
@@ -112,7 +112,7 @@ void iLQRTree::forward_pass(const double alpha)
     }
 }
 
-Eigen::MatrixXd iLQRTree::forward_node(std::shared_ptr<PlanNode> node, 
+Eigen::MatrixXd LQRTree::forward_node(std::shared_ptr<PlanNode> node, 
         const Eigen::MatrixXd &xt, 
         const double alpha)
 {
@@ -138,7 +138,7 @@ Eigen::MatrixXd iLQRTree::forward_node(std::shared_ptr<PlanNode> node,
 
 
 
-void iLQRTree::bellman_tree_backup()
+void LQRTree::bellman_tree_backup()
 {
    // Special case to compute the control policy and value matrices for the leaf nodes.
    control_and_value_for_leaves();
@@ -154,7 +154,7 @@ void iLQRTree::bellman_tree_backup()
    } 
 }
 
-void iLQRTree::control_and_value_for_leaves()
+void LQRTree::control_and_value_for_leaves()
 {
    auto leaf_nodes = tree_.leaf_nodes();
 
@@ -171,7 +171,7 @@ void iLQRTree::control_and_value_for_leaves()
    }
 }
 
-std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> &all_children)
+std::list<TreeNodePtr> LQRTree::backup_to_parents(const std::list<TreeNodePtr> &all_children)
 {
    // Hash the leaves by their parent so we can process all the children for a parent.    
    std::unordered_map<TreeNodePtr, std::list<TreeNodePtr>> parent_map;
@@ -210,7 +210,7 @@ std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> 
    return parents;
 }
 
-Eigen::MatrixXd iLQRTree::compute_value_matrix(const std::shared_ptr<PlanNode> &node, 
+Eigen::MatrixXd LQRTree::compute_value_matrix(const std::shared_ptr<PlanNode> &node, 
                                                const Eigen::MatrixXd &Vt1)
 {
     // Extract dynamics terms.
@@ -242,7 +242,7 @@ Eigen::MatrixXd iLQRTree::compute_value_matrix(const std::shared_ptr<PlanNode> &
     return Vt;
 }
 
-void iLQRTree::compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1)
+void LQRTree::compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1)
 {
     const Eigen::MatrixXd &A = node->dynamics_.A;
     const Eigen::MatrixXd &B = node->dynamics_.B;
@@ -259,4 +259,4 @@ void iLQRTree::compute_control_policy(std::shared_ptr<PlanNode> &node, const Eig
     node->k_ = -1.0 * inv_cntrl_term * b_u; 
 }
 
-} // namespace ilqr
+} // namespace lqr

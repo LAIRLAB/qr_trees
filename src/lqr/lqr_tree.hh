@@ -30,15 +30,17 @@ public:
     // Construct a PlanNode which represents the dynamics, cost functions as well as the state
     // and control policy at a specific time step along the tree. Nominal state and control inputs
     // are passed and used for the initial Taylor expansions of the cost and dynamics functions.
-    std::shared_ptr<PlanNode> make_plan_node(const Eigen::VectorXd &x_star,
-                                             const Eigen::VectorXd &u_star,
-                                             const DynamicsFunc &dynamics,
-                                             const CostFunc &cost,
+    std::shared_ptr<PlanNode> make_plan_node(const Eigen::MatrixXd &A,
+                                             const Eigen::MatrixXd &B,
+                                             const Eigen::MatrixXd &Q,
+                                             const Eigen::MatrixXd &R,
                                              const double probablity);
 
     // Add the root node to the iLQR Tree with similar arguments to the make_plan_node function.
-    TreeNodePtr add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd &u_star, 
-            const DynamicsFunc &dynamics, const CostFunc &cost);
+    TreeNodePtr add_root(const Eigen::MatrixXd &A,
+                         const Eigen::MatrixXd &B,
+                         const Eigen::MatrixXd &Q,
+                         const Eigen::MatrixXd &R);
     
     // Add a PlanNode as the root node to the iLQR Tree. Requires the probability to be 1. 
     TreeNodePtr add_root(const std::shared_ptr<PlanNode> &plan_node);
@@ -52,7 +54,7 @@ public:
 
     // Forward pass to generate new nominal points for iLQR.
     // The step-size is controlled by alpha (alpha * K).
-    void forward_pass(const double alpha);
+    void forward_pass(const Eigen::VectorXd &x0);
 
     // Do a full bellman backup on the tree.
     void bellman_tree_backup();
@@ -69,8 +71,7 @@ private:
 
     // The alpha is the step size to use in the control application.
     Eigen::MatrixXd forward_node(std::shared_ptr<PlanNode> node, 
-                                 const Eigen::MatrixXd &xt, 
-                                 const double alpha);
+                                 const Eigen::MatrixXd &xt);
 
     // Special case for just the leaves of the tree. We can compute this by giving the leaves
     // synthetic children with $V_{T+1} = 0$.

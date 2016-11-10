@@ -19,40 +19,36 @@ namespace lqr
 LQRTree::LQRTree(int state_dim, int control_dim)
     : state_dim_(state_dim),
       control_dim_(control_dim),
-      ZERO_VALUE_MATRIX_(Eigen::MatrixXd::Zero(state_dim + 1, state_dim + 1))
+      ZERO_VALUE_MATRIX_(Eigen::MatrixXd::Zero(state_dim, state_dim))
 {
 }
 
-std::shared_ptr<PlanNode> LQRTree::make_plan_node(const Eigen::VectorXd &x_star, 
-                                const Eigen::VectorXd &u_star, 
-                                const DynamicsFunc &dynamics_func, 
-                                const CostFunc &cost_func,
+std::shared_ptr<PlanNode> LQRTree::make_plan_node(
+                                const Eigen::MatrixXd &A,
+                                const Eigen::MatrixXd &B,
+                                const Eigen::MatrixXd &Q,
+                                const Eigen::MatrixXd &R,
                                 const double probability)
 {
-    IS_EQUAL(x_star.size(), state_dim_);
-    IS_EQUAL(u_star.size(), control_dim_);
+    std::shared_ptr<lqr::PlanNode> plan_node 
+        = std::make_shared<lqr::PlanNode>(state_dim_, control_dim_, A, B, Q, R, probability);
 
-    std::shared_ptr<PlanNode> plan_node 
-        = std::make_shared<PlanNode>(state_dim_, control_dim_, dynamics_func, cost_func, probability);
-
-    // Add node creation, the nominal state/control and the forward pass state/control used for 
-    // differentiating the Dynamics and cost function are the same.
-    plan_node->set_xstar(x_star);
-    plan_node->set_ustar(u_star);
-    plan_node->set_x(x_star);
-    plan_node->set_u(u_star);
-
-    // Update the linearization and quadraticization of the dynamics and cost respectively.
+    // Update the linearization and quadraticization of 
+    // the dynamics and cost respectively. (does nothing...)
     plan_node->update_dynamics();
     plan_node->update_cost();
 
     return plan_node;
 }
 
-TreeNodePtr LQRTree::add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd &u_star, 
-        const DynamicsFunc &dynamics_func, const CostFunc &cost_func)
+TreeNodePtr LQRTree::add_root(
+        const Eigen::MatrixXd &A,
+        const Eigen::MatrixXd &B,
+        const Eigen::MatrixXd &Q,
+        const Eigen::MatrixXd &R
+        )
 {
-    return add_root(make_plan_node(x_star, u_star, dynamics_func, cost_func, 1.0)); 
+    return add_root(make_plan_node(A, B, Q, R, 1.0)); 
 }
 
 TreeNodePtr LQRTree::add_root(const std::shared_ptr<PlanNode> &plan_node)
@@ -89,20 +85,18 @@ TreeNodePtr LQRTree::root()
     return tree_.root();
 }
 
-void LQRTree::forward_pass(const double alpha)
+void LQRTree::forward_pass(const Eigen::VectorXd &x0)
 {
     // Process from the end of the list, but start at the beginning.
     std::list<std::pair<TreeNodePtr, Eigen::MatrixXd>> to_process;
     // First x linearization is just from the root, not from rolling out dynamics.
-    Eigen::VectorXd xt = tree_.root()->item()->x();
+    Eigen::VectorXd xt = x0;
     to_process.emplace_front(tree_.root(), xt);
     while (!to_process.empty())
     {
         auto &process_pair = to_process.back();
-        //TODO: Implement line search over this function for the forward pass.
         const Eigen::MatrixXd xt1 = forward_node(process_pair.first->item(), 
-                process_pair.second, alpha); 
-        IS_EQUAL(xt1(state_dim_), 1);
+                process_pair.second); 
         for (auto child : process_pair.first->children())
         {
             to_process.emplace_front(child, xt1);
@@ -113,26 +107,18 @@ void LQRTree::forward_pass(const double alpha)
 }
 
 Eigen::MatrixXd LQRTree::forward_node(std::shared_ptr<PlanNode> node, 
-        const Eigen::MatrixXd &xt, 
-        const double alpha)
+        const Eigen::MatrixXd &xt)
 {
-    // Compute difference from where the node is at now during the forward pass versus the 
-    // linearization point from before.
-    Eigen::VectorXd dx_t = (xt - node->x());
-    dx_t(state_dim_) = 1.0; // Needs to be in homogenous coordinates
-    const Eigen::VectorXd du_t = node->K_ * dx_t + node->k_;
+    const Eigen::VectorXd ut = node->K_ * xt;
 
     // Set the new linearization point at the new xt for the node.
     node->set_x(xt);
-    const Eigen::MatrixXd ut = alpha*du_t + node->u();
     node->set_u(ut);
     node->update_dynamics(); 
     node->update_cost();
 
-    // The upper right corner of A has x_{t+1} = f(x_t,u_t), 
-    // i.e. the evaluation of the dynamics at x_t,u_t
-    Eigen::VectorXd xt1 = Eigen::VectorXd::Ones(state_dim_+1);
-    xt1.topRows(state_dim_) = node->dynamics_.A.topRightCorner(state_dim_, 1);
+    // Go to the next state.
+    Eigen::VectorXd xt1 = node->dynamics_.A * xt + node->dynamics_.B *ut;
     return xt1;
 }
 
@@ -218,26 +204,12 @@ Eigen::MatrixXd LQRTree::compute_value_matrix(const std::shared_ptr<PlanNode> &n
     const Eigen::MatrixXd &B = node->dynamics_.B;
     // Extract cost terms.
     const Eigen::MatrixXd &Q = node->cost_.Q;
-    const Eigen::MatrixXd &P = node->cost_.P;
-    const Eigen::MatrixXd &b_u = node->cost_.b_u;
+    const Eigen::MatrixXd &R = node->cost_.R;
     // Extract control policy terms.
     const Eigen::MatrixXd &K = node->K_;
-    const Eigen::MatrixXd &k = node->k_;
 
-    const Eigen::MatrixXd cntrl_cross_term = P + A.transpose() * Vt1 * B;
-    Eigen::MatrixXd quadratic_term = Q + A.transpose() * Vt1 * A + cntrl_cross_term*K;
-    IS_EQUAL(quadratic_term.rows(), state_dim_ + 1);
-    IS_EQUAL(quadratic_term.cols(), state_dim_ + 1);
-
-    Eigen::VectorXd linear_term = cntrl_cross_term*k;
-    IS_EQUAL(linear_term.size(), state_dim_ + 1);
-
-    Eigen::MatrixXd constant_term = b_u.transpose() * k;
-
-    Eigen::MatrixXd Vt = quadratic_term; 
-    Vt.topRightCorner(state_dim_, 1) += linear_term.topRows(state_dim_);
-    Vt.bottomLeftCorner(1, state_dim_) += linear_term.topRows(state_dim_).transpose();
-    Vt.bottomRightCorner(1, 1) += constant_term;
+    const auto tmp = (A + B*K);
+    const Eigen::MatrixXd Vt = Q + K.transpose()*R*K + tmp.transpose()*Vt1*tmp;
 
     return Vt;
 }
@@ -247,16 +219,14 @@ void LQRTree::compute_control_policy(std::shared_ptr<PlanNode> &node, const Eige
     const Eigen::MatrixXd &A = node->dynamics_.A;
     const Eigen::MatrixXd &B = node->dynamics_.B;
     // Extract cost terms.
-    const Eigen::MatrixXd &P = node->cost_.P;
     const Eigen::MatrixXd &R = node->cost_.R;
-    const Eigen::MatrixXd &b_u = node->cost_.b_u;
 
     node->check_sizes();
 
     const Eigen::MatrixXd inv_cntrl_term = (R + B.transpose()*Vt1*B).inverse();
 
-    node->K_ = -1.0 * inv_cntrl_term * (P.transpose() + B.transpose() * Vt1 * A);
-    node->k_ = -1.0 * inv_cntrl_term * b_u; 
+    node->K_ = inv_cntrl_term * (B.transpose()*Vt1*A);
+    node->K_ *= -1.0;
 }
 
 } // namespace lqr

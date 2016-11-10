@@ -99,14 +99,14 @@ std::vector<lqr::StateCost> LQR::forward_pass(const Eigen::VectorXd &x0) const
     Eigen::VectorXd ut = Eigen::VectorXd::Zero(control_dim_);
     for (int t = 0; t < T; ++t)
     {
-        Eigen::VectorXd cost = xt.transpose()*Qs_[t]*xt + ut.transpose()*Rs_[t]*ut;
+        const Eigen::MatrixXd &Kt = Ks_[t];
+        ut = Kt * xt;
+        const Eigen::VectorXd cost = xt.transpose()*Qs_[t]*xt 
+            + ut.transpose()*Rs_[t]*ut;
         IS_EQUAL(cost.size(), 1)
+
         states.emplace_back(xt, ut, cost[0]);
         IS_EQUAL(xt.rows(), state_dim_);
-        const Eigen::MatrixXd &Kt = Ks_[t];
-        IS_EQUAL(Kt.rows(), control_dim_);
-        IS_EQUAL(Kt.cols(), state_dim_);
-        ut = Kt * xt;
         xt = As_[t] * xt + Bs_[t] * ut;
     }
     IS_EQUAL(states.size(), T);

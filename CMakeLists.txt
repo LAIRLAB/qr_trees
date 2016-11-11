@@ -1,6 +1,6 @@
 #########################################################
 #                                                       #
-#    LQR for POMDP Trees                                #
+#    LQR for Trees                                      #
 #    - Arun Venkatraman    <arunvenk@cs.cmu.edu>        #
 #                                                       #
 #    Created:  March 2016                               #
@@ -106,7 +106,6 @@ include_directories(${EXTERNALS_DIR}/include)
 link_directories(${LIBRARY_OUTPUT_PATH})
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-
 
 
 #################### Add Source Directories ####################

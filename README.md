@@ -15,7 +15,7 @@ cmake ..
 make -j8
 ```
 We do a recursive build to clone all the submodules. Currently the following submodules are used:
-- [pybind11](https://github.com/pybind/pybind11) submodule
+- [pybind11](https://github.com/pybind/pybind11) 
 
 #### Building on Mac OSX
 For compiling the python bindings, the default behavior will link using the
@@ -24,7 +24,7 @@ location), you can replace the `cmake ..` command from above with the following.
 ```
 cmake .. -DUSE_PYTHON_HOMEBREW=True
 ```
-This wil use the python includes and libraries from 
+This will use the python includes and libraries from 
 `/usr/local/Cellar/python/2.7.12_2/Frameworks/Python.framework/Versions/2.7`.
 
 You may also be able to manually specify `PYTHON_INCLUDE_DIRS` and

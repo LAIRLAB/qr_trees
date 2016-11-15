@@ -1,2 +1,2 @@
-add_library(ilqr_tree SHARED ilqr_tree.cc types.cc)
+add_library(ilqr_tree SHARED ilqr_tree.cc types.cc iLQR.cc)
 target_link_libraries(ilqr_tree utils)

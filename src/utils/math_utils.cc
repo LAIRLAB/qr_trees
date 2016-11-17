@@ -7,8 +7,6 @@
 namespace
 {
     constexpr double TOL = 1e-7;
-
-
 }
 
 namespace math 
@@ -56,6 +54,7 @@ Eigen::MatrixXd jacobian(
         const std::function<Eigen::VectorXd(const Eigen::VectorXd&)> &func, 
         const Eigen::VectorXd &pt, const double delta)
 {
+    IS_TRUE(func);
     IS_GREATER(delta, 0);
 
     const int in_dim = pt.size();

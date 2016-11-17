@@ -100,6 +100,9 @@ void PlanNode::check_sizes()
 
 void PlanNode::update_dynamics()
 {
+    IS_EQUAL(xu_.topRows(state_dim_), x_.topRows(state_dim_));
+    IS_EQUAL(xu_.bottomRows(control_dim_), u_);
+    IS_EQUAL(x_.bottomRows(1)[0], 1.0);
     const Eigen::MatrixXd AB = math::jacobian(dynamics_wrapper_, xu_);
     IS_EQUAL(AB.rows(), state_dim_);
     IS_EQUAL(AB.cols(), state_dim_ + control_dim_);

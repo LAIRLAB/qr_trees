@@ -29,11 +29,11 @@
 }
 
 #define IS_TRUE(X) {\
-    if (!X) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected TRUE (" << X << ")"; throw std::logic_error(ss.str()); } \
+    if (!X) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected TRUE but got false."; throw std::logic_error(ss.str()); } \
 }
 
 #define IS_FALSE(X) {\
-    if (X) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected FALSE (" << X << ")"; throw std::logic_error(ss.str()); } \
+    if (X) {std::ostringstream ss; ss << FILE_LINE << "\n\t\tExpected FALSE but got true."; throw std::logic_error(ss.str()); } \
 }
 
 #define IS_GREATER(X,Y) {\

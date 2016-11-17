@@ -3,6 +3,7 @@
 //
 
 #include <ilqr/ilqr_tree.hh>
+#include <ilqr/iLQR.hh>
 #include <lqr/LQR.hh>
 #include <utils/debug_utils.hh>
 #include <utils/math_utils.hh>
@@ -111,76 +112,44 @@ void simple_lqr()
         tree_nodes.push_back(last_tree_node);
     }
 
+    ilqr::iLQR ilqr(linear_dyn, quad_cost, xstars, ustars);
+    //ilqr::iLQR ilqr(A, B, Q, R, T, xstars, ustars);
+    
+
     // Compute the true LQR result.
     lqr::LQR lqr(A, B, Q, R, T);
     lqr.solve();
     const std::vector<lqr::StateCost> true_lqr_states = lqr.forward_pass(xstars[0]);
 
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 2; ++i)
     {
+        std::vector<Eigen::VectorXd> ilqr_states = ilqr.states();
+        std::vector<Eigen::VectorXd> ilqr_controls = ilqr.controls();
         if (i % 1 == 0)
         {
             for (int t = 0; t < T; ++t)
             {
                 auto plan_node = tree_nodes[t]->item();
-                const auto node_x = plan_node->x().topRows(state_dim);
+                //const auto node_x = plan_node->x().topRows(state_dim);
                 const auto true_x = true_lqr_states[t].x;
-                const auto node_u = plan_node->u();
+                //const auto node_u = plan_node->u();
                 const auto true_u = true_lqr_states[t].u;
                 WARN(i << ",t=" << t << ", xtrue: " << true_x.transpose());
-                WARN("    " << t << ", xtree: " << node_x.transpose());
-                WARN(i << ",t=" << t << ", utrue: " << node_u.transpose());
-                WARN("    " << t << ", utree: " << true_u.transpose());
+                WARN("    " << t << ", xilqr: " << ilqr_states[t].transpose());
+                //WARN("    " << t << ", xtree: " << node_x.transpose());
+                WARN(i << ",t=" << t << ", utrue: " << true_u.transpose());
+                WARN("    " << t << ", uilqr: " << ilqr_controls[t].transpose());
+                //WARN("    " << t << ", utree: " << node_u.transpose());
             }
             WARN("\n")
         }
         ilqr_tree.bellman_tree_backup();
         ilqr_tree.forward_pass(1e0);
+        ilqr.solve();
     }
     int i = 1;
     auto plan_node = tree_nodes[T-i]->item();
-    WARN("x[T-" << i << "]: " << plan_node->x().transpose());
-    WARN("b_u[T-" << i << "]: " << plan_node->cost_.b_u.transpose());
-    WARN("K[T-" << i << "]\n "  << plan_node->K_);
-    WARN("k[T-" << i << "]: " << plan_node->k_.transpose());
-    WARN("V[T-" << i << "]\n" << plan_node->V_)
-    WARN("Q[T-" << i << "]\n" << plan_node->cost_.Q)
     ilqr_tree.forward_pass(1e0);
-
-    /*
-    // Since this is with linear dynamics and quadratic cost, this should converge 
-    // (to the LQR solution).
-    std::vector<Eigen::VectorXd> xs;
-    for (int i = 0; i < 2; ++i)
-    {
-        ilqr_tree.bellman_tree_backup();
-        ilqr_tree.forward_pass(1e0);
-
-        Eigen::VectorXd x_diff(T);
-        for (int t = 0; t < T; ++t)
-        {
-            auto plan_node = tree_nodes[t]->item();
-            const auto node_x = plan_node->x().topRows(state_dim);
-            const auto true_x = true_lqr_states[t].first;
-            Eigen::VectorXd diff = (node_x - true_x); 
-            if (i != 0)
-            {
-                //Eigen::VectorXd diff = (plan_node->x().topRows(state_dim) - xs[t]);
-                //x_diff[t] = diff.norm();
-            }
-            else
-            {
-                xs.resize(T);
-                //x_diff[t] = 9999999;
-            }
-            x_diff[t] = diff.norm();
-            xs[t] = plan_node->x().topRows(state_dim);
-            WARN(i << ",t=" << t << ", xtrue: " << true_x.transpose());
-            WARN("    " << t << ", xtree: " << node_x.transpose());
-        }
-        WARN(i << ", xdiff: " << x_diff.transpose());
-    }
-    */
 
 
     Eigen::MatrixXd Qaug = Eigen::MatrixXd::Zero(state_dim+1, state_dim+1);

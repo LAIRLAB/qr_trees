@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <ilqr/ilqr_helpers.hh>
 #include <ilqr/types.hh>
 
 #include <Eigen/Dense>
@@ -12,27 +13,6 @@
 
 namespace ilqr
 {
-
-struct StateCost
-{
-    StateCost(Eigen::VectorXd state, Eigen::VectorXd control, double cost) : x(state), u(control), c(cost) {}
-    Eigen::VectorXd x;
-    Eigen::VectorXd u;
-    double c;
-};
-
-// Taylor series expansion points of dynamics and cost functions.
-struct TaylorExpansion
-{
-    Eigen::VectorXd x;
-    Eigen::VectorXd u;
-    ilqr::Dynamics dynamics;
-    ilqr::Cost cost;
-};
-
-// Update the dynamics inside the expansion point in-place.
-void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansion);
-void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion);
 
 class iLQR
 {

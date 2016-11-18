@@ -11,7 +11,7 @@ bool is_equal(const Eigen::MatrixXd &mat1, const Eigen::MatrixXd &mat2, const do
 
 // Returns true if a matrix is equal to its transpose. Returns false otherwise. 
 // Throws an exception if the matrix is not square.
-bool is_symmetric(const Eigen::MatrixXd &mat);
+bool is_symmetric(const Eigen::MatrixXd &mat, const double tol=1e-12);
 
 // Computes the Gradient of func() using finite differencing around pt. The gradient has the same dimensions as the
 // input for func(), which should be the same as the dimension of pt.

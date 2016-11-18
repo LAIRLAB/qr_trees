@@ -2,7 +2,7 @@
 // Tests the iLQR Taylor expansions of the dynamics and the cost function.
 //
 
-#include <ilqr/iLQR.hh>
+#include <ilqr/ilqr_helpers.hh>
 #include <utils/math_utils.hh>
 #include <utils/debug_utils.hh>
 

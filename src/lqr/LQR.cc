@@ -22,7 +22,7 @@ namespace
      IS_EQUAL(R.cols(), control_dim);
 
      math::check_psd(Q, 0.);
-     math::check_psd(R, 1e-5);
+     math::check_psd(R, 1e-8);
   }
 }
 

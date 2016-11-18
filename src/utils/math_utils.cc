@@ -4,11 +4,6 @@
 
 #include <Eigen/Eigenvalues>
 
-namespace
-{
-    constexpr double TOL = 1e-7;
-}
-
 namespace math 
 {
 
@@ -19,10 +14,10 @@ bool is_equal(const Eigen::MatrixXd &mat1, const Eigen::MatrixXd &mat2, const do
     return ((mat1 - mat2).array().abs() < tol).all();
 }
 
-bool is_symmetric(const Eigen::MatrixXd &mat)
+bool is_symmetric(const Eigen::MatrixXd &mat, const double tol)
 {
     IS_EQUAL(mat.rows(), mat.cols());
-    return math::is_equal(mat, mat.transpose(), TOL);
+    return math::is_equal(mat, mat.transpose(), tol);
 }
 
 Eigen::VectorXd gradient(

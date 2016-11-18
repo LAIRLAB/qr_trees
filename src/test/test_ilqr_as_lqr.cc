@@ -43,11 +43,20 @@ ilqr::CostFunc create_quadratic_cost(const Eigen::MatrixXd &Q, const Eigen::Matr
     };
 }
 
+Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val)
+{
+    Eigen::MatrixXd tmp = Eigen::MatrixXd::Random(dim, dim);
+    Eigen::MatrixXd tmp2 = (tmp + tmp.transpose())/2.0;
+    return math::project_to_psd(tmp2, min_eig_val);
+}
+
 }
 
 // Simplest LQR formulation with a static linear dynamics and quadratic cost.
-void simple_lqr()
+void test_with_lqr_initialization()
 {
+    std::srand(1);
+
     // Time horizon.
     constexpr int T = 6;
     // State and control dimensions.
@@ -55,23 +64,15 @@ void simple_lqr()
     constexpr int control_dim = 3;
 
     // Define the dynamics.
-    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    //A(1, 1) = -0.5;
-    //A(2, 2) = 0.25;
+    const Eigen::MatrixXd A = Eigen::MatrixXd::Random(state_dim, state_dim);
+    //const Eigen::MatrixXd A = Eigen::MatrixXd::Identity(state_dim, state_dim);
     Eigen::MatrixXd B = Eigen::MatrixXd::Identity(state_dim, control_dim);
-    //B(0, 1) = 0.25;
-    //B(1, 1) = -0.3;
-    //B(2, 0) = 0.5;
-    //B(2, 1) = -0.1;
+    //B(0, 1) = 1;
     const ilqr::DynamicsFunc linear_dyn = create_linear_dynamics(A, B);
 
     // Define the cost.
-    Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    //Q(0, 0) = 5.0;
-    //Q(2, 2) = 10.0;
-    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(control_dim, control_dim);
-    //R(0, 0) = 0.1;
-    //R(1, 1) = 1.0;
+    const Eigen::MatrixXd Q = make_random_psd(state_dim, 1e-11);
+    const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-7);
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R);
 
 
@@ -90,11 +91,13 @@ void simple_lqr()
     lqr.solve(Vs_lqr);
     lqr.forward_pass(x0, lqr_costs, lqr_states, lqr_controls);
 
+    // Storage for iLQR
     std::vector<Eigen::VectorXd> ilqr_states;
     std::vector<Eigen::VectorXd> ilqr_controls;
     std::vector<double> ilqr_costs;
     std::vector<Eigen::MatrixXd> Vs_ilqr;
     std::vector<Eigen::MatrixXd> Gs_ilqr;
+
     ilqr::iLQR ilqr(linear_dyn, quad_cost, lqr_states, lqr_controls);
     ilqr.backwards_pass(Vs_ilqr, Gs_ilqr);
     ilqr.forward_pass(ilqr_costs, ilqr_states, ilqr_controls);
@@ -120,7 +123,7 @@ void simple_lqr()
 
 int main()
 {
-    simple_lqr();
+    test_with_lqr_initialization();
 
     return 0;
 }

@@ -7,45 +7,8 @@
 #include <utils/debug_utils.hh>
 #include <utils/math_utils.hh>
 
-#include <numeric>
-
-namespace
-{
-}
-
 namespace ilqr 
 {
-iLQR::iLQR(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B,
-        const Eigen::MatrixXd &Q, const Eigen::MatrixXd &R, 
-        const int T, 
-        const std::vector<Eigen::VectorXd> &Xs, 
-        const std::vector<Eigen::VectorXd> &Us
-        )
-    : T_(T), A_(A), B_(B), Q_(Q), R_(R)
-{
-    has_true_lqr_ = true;
-
-    state_dim_ = A.rows();
-    control_dim_ = B.cols();
-
-    true_dynamics_ = [A,B](const Eigen::VectorXd& x, const Eigen::VectorXd& u) { 
-        Eigen::VectorXd xt1 = A*x + B*u; 
-        return xt1;
-    };
-    true_cost_ = [Q,R](const Eigen::VectorXd& x, const Eigen::VectorXd& u) { 
-        return (x.transpose()*Q*x + u.transpose()*R*u)[0]; 
-    };
-
-    // Setup the expansion points.
-    expansions_.resize(T_);
-    for (int i = 0; i < T_; ++i)
-    {
-        expansions_[i].x = Xs[i];
-        expansions_[i].u = Us[i];
-        update_dynamics(true_dynamics_, expansions_[i]);
-        update_cost(true_cost_, expansions_[i]);
-    }
-}
 
 iLQR::iLQR(const DynamicsFunc &dynamics, 
            const CostFunc &cost, 
@@ -55,7 +18,6 @@ iLQR::iLQR(const DynamicsFunc &dynamics,
     : true_dynamics_(dynamics),
       true_cost_(cost)
 {
-    has_true_lqr_ = false;
     // At least two points in trajectory.
     IS_GREATER(Xs.size(), 1);
     IS_EQUAL(Us.size(), Xs.size());
@@ -171,14 +133,6 @@ void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
     expansion.cost.b_u = g_u;
 }
 
-void iLQR::solve()
-{
-    backwards_pass();
-    std::vector<double> costs = forward_pass();
-    const double total_cost = std::accumulate(costs.begin(), costs.end(), 0.0);
-    PRINT("Total cost: " << total_cost);
-}
-
 std::vector<Eigen::VectorXd> iLQR::states()
 {
     std::vector<Eigen::VectorXd> states; 
@@ -199,15 +153,16 @@ std::vector<Eigen::VectorXd> iLQR::controls()
     return controls;
 }
 
-void iLQR::backwards_pass()
+void iLQR::backwards_pass(std::vector<Eigen::MatrixXd> &Vs, std::vector<Eigen::MatrixXd> &Gs)
 {
     Ks_.clear(); Ks_.resize(T_);
+    Vs.clear(); Vs.resize(T_);
+    Gs.clear(); Gs.resize(T_);
+
     // [dim(x) + 1] x [dim(x) + 1]
     Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_+1, state_dim_+1);
-    //Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_, state_dim_);
     // [1] * [dim(x) + 1] 
     Eigen::MatrixXd Gt1 = Eigen::MatrixXd::Zero(1, state_dim_+1);
-    //Eigen::MatrixXd Gt1 = Eigen::MatrixXd::Zero(1, state_dim_);
 
     for (int t = T_-1; t >= 0; t--)
     {
@@ -233,54 +188,53 @@ void iLQR::backwards_pass()
                                            + B.transpose()*Vt1*A 
                                            + linear_term);
         Kt *= -1.0;
-        //Eigen::MatrixXd Kt = (R + B.transpose()*Vt1*B).inverse()
-        //                                * (B.transpose()*Vt1*A);
-        //Kt *= -1.0;
 
         IS_EQUAL(Kt.rows(), control_dim_);
-        //IS_EQUAL(Kt.cols(), state_dim_ + 1);
+        IS_EQUAL(Kt.cols(), state_dim_ + 1);
         Ks_[t] = Kt;
 
         const Eigen::MatrixXd &Q = expansion.cost.Q;        
         const Eigen::MatrixXd tmp = (A + B*Kt);
-        Eigen::MatrixXd Vt1next = Q + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp + 2.0*P*Kt;
-        //Eigen::MatrixXd Vt1next = Q + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
+        const Eigen::MatrixXd Vt1next = Q + Kt.transpose()*R*Kt 
+            + tmp.transpose()*Vt1*tmp + 2.0*P*Kt;
         Vt1 = Vt1next;
-        //Gt1 = g_u.transpose()*Kt + Gt1*tmp;
+        Vs[t] = Vt1next;
+
+        const Eigen::MatrixXd Gt1next = g_u.transpose()*Kt 
+            + Gt1*tmp; 
+        Gt1 = Gt1next;
+        Gs[t] = Gt1;
     }
 }
 
-std::vector<double> iLQR::forward_pass() 
+void iLQR::forward_pass(std::vector<double> &costs, 
+            std::vector<Eigen::VectorXd> &states,
+            std::vector<Eigen::VectorXd> &controls)
 {
     IS_TRUE(true_dynamics_);
     IS_TRUE(true_cost_);
 
     Eigen::VectorXd xt = expansions_[0].x;
     Eigen::VectorXd ut = Eigen::VectorXd::Zero(control_dim_);
-    std::vector<double> costs(T_);
+    costs.reserve(T_);
     for (int t = 0; t < T_; ++t)
     {
         TaylorExpansion &expansion = expansions_[t];
         const Eigen::MatrixXd &Kt = Ks_[t];
         Eigen::VectorXd zt = Eigen::VectorXd::Ones(state_dim_+1);
         zt.topRows(state_dim_) = (xt - expansion.x);
-        if (has_true_lqr_) 
-        {
-            zt.topRows(state_dim_) = xt;
-        }
 
         Eigen::VectorXd vt = Kt * zt;
         ut = vt + expansion.u;
-        if (has_true_lqr_)
-        {
-            ut = vt;
-        }
 
         const double cost = true_cost_(xt, ut);
-        costs[t] = cost;
 
         expansion.x = xt;
         expansion.u = ut;
+
+        costs.push_back(cost);
+        states.push_back(xt);
+        controls.push_back(ut);
 
         // Roll forward the dynamics.
         const Eigen::VectorXd xt1 = true_dynamics_(xt, ut);
@@ -294,8 +248,6 @@ std::vector<double> iLQR::forward_pass()
         update_dynamics(true_dynamics_, expansion);
         update_cost(true_cost_, expansion);
     }
-
-    return costs;
 }
 
 } // namespace lqr

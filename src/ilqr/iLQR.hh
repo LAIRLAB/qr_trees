@@ -42,18 +42,12 @@ public:
             const std::vector<Eigen::VectorXd> &Xs, 
             const std::vector<Eigen::VectorXd> &Us);
 
-    // for checking equations given true A, B, Q, R.
-    iLQR(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B,
-        const Eigen::MatrixXd &Q, const Eigen::MatrixXd &R, 
-        const int T, 
-        const std::vector<Eigen::VectorXd> &Xs, 
-        const std::vector<Eigen::VectorXd> &Us);
+    void backwards_pass(std::vector<Eigen::MatrixXd> &Vs,
+                        std::vector<Eigen::MatrixXd> &Gs);
 
-    void solve();
-
-    void backwards_pass();
-
-    std::vector<double> forward_pass();
+    void forward_pass(std::vector<double> &costs, 
+            std::vector<Eigen::VectorXd> &states,
+            std::vector<Eigen::VectorXd> &controls);
 
     std::vector<Eigen::VectorXd> states();
     std::vector<Eigen::VectorXd> controls();
@@ -71,14 +65,6 @@ private:
 
     // Feedback control gains.
     std::vector<Eigen::MatrixXd> Ks_;
-
-
-    // check math with true lqr.
-    bool has_true_lqr_ = false;
-    Eigen::MatrixXd A_;
-    Eigen::MatrixXd B_;
-    Eigen::MatrixXd Q_;
-    Eigen::MatrixXd R_;
 };
 
 } // namespace lqr

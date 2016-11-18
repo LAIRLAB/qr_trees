@@ -72,18 +72,23 @@ void simple_lqr()
     lqr::LQR lqr(A, B, Q, R, T);
     lqr.solve();
 
-    const std::vector<lqr::StateCost> true_lqr_states = lqr.forward_pass(x0);
+    std::vector<Eigen::VectorXd> lqr_states;
+    std::vector<Eigen::VectorXd> lqr_controls;
+    std::vector<double> lqr_costs;
+    lqr.forward_pass(x0, lqr_costs, lqr_states, lqr_controls);
     for (int t = 0; t < T; ++t)
     {
         auto plan_node = tree_nodes[t]->item();
         const auto node_x = plan_node->x().topRows(state_dim);
-        const auto true_x = true_lqr_states[t].x;
+        const auto true_x = lqr_states[t];
         const auto node_u = plan_node->u();
-        const auto true_u = true_lqr_states[t].u;
-        WARN(",t=" << t << ", xtrue: " << true_x.transpose());
-        WARN("    " << t << ", xtree: " << node_x.transpose());
-        WARN(",t=" << t << ", utrue: " << node_u.transpose());
-        WARN("    " << t << ", utree: " << true_u.transpose());
+        const auto true_u = lqr_controls[t];
+        IS_TRUE(math::is_equal(node_x, true_x, 1e-8));
+        IS_TRUE(math::is_equal(node_u, true_u, 1e-8));
+        WARN("t=" << t << ", xtrue: " << true_x.transpose());
+        WARN("   " << t << ", xtree: " << node_x.transpose());
+        WARN("t=" << t << ", utrue: " << node_u.transpose());
+        WARN("  " << t << ", utree: " << true_u.transpose());
     }
 
 }

@@ -66,11 +66,16 @@ LQR::LQR(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B,
 
 void LQR::solve()
 {
+    std::vector<Eigen::MatrixXd> tmp;
+    solve(tmp);
+}
+
+void LQR::solve(std::vector<Eigen::MatrixXd> &Vs)
+{
     const int T = As_.size();
+    Vs.clear(); Vs.resize(T);
     Ks_.clear(); Ks_.resize(T);
-    //Eigen::MatrixXd Kt = Eigen::MatrixXd::Zero(control_dim_, state_dim_);
-    //Ks.back() = Kt;
-    //Eigen::MatrixXd Vt1 = Qs_.back(); 
+
     Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_, state_dim_);
     for (int t = T-1; t >= 0; t--)
     {
@@ -87,30 +92,41 @@ void LQR::solve()
         const Eigen::MatrixXd &Q = Qs_[t];
         const auto tmp = (A + B*Kt);
         Vt1 = Q + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
+        Vs[t] = Vt1;
     }
+
 }
 
-std::vector<lqr::StateCost> LQR::forward_pass(const Eigen::VectorXd &x0) const
+void LQR::forward_pass(const Eigen::VectorXd &x0, 
+        std::vector<double> &costs,
+        std::vector<Eigen::VectorXd> &states, 
+        std::vector<Eigen::VectorXd> &controls) const
 {
     const int T = As_.size();
-    std::vector<lqr::StateCost> states; 
     states.reserve(T);
+    controls.reserve(T);
+    costs.reserve(T);
+
     Eigen::VectorXd xt = x0;
     Eigen::VectorXd ut = Eigen::VectorXd::Zero(control_dim_);
     for (int t = 0; t < T; ++t)
     {
         const Eigen::MatrixXd &Kt = Ks_[t];
         ut = Kt * xt;
-        const Eigen::VectorXd cost = xt.transpose()*Qs_[t]*xt 
-            + ut.transpose()*Rs_[t]*ut;
+        const Eigen::VectorXd cost = 0.5*(xt.transpose()*Qs_[t]*xt 
+            + ut.transpose()*Rs_[t]*ut);
         IS_EQUAL(cost.size(), 1)
 
-        states.emplace_back(xt, ut, cost[0]);
+        states.push_back(xt); 
+        controls.push_back(ut);
+        costs.push_back(cost[0]);
+
         IS_EQUAL(xt.rows(), state_dim_);
         xt = As_[t] * xt + Bs_[t] * ut;
     }
     IS_EQUAL(states.size(), T);
-    return states;
+    IS_EQUAL(controls.size(), T);
+    IS_EQUAL(costs.size(), T);
 }
 
 } // namespace lqr

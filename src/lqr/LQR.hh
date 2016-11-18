@@ -33,8 +33,12 @@ public:
         const int T);
 
     void solve();
+    void solve(std::vector<Eigen::MatrixXd> &Vs);
 
-    std::vector<StateCost> forward_pass(const Eigen::VectorXd &x0) const;
+    void forward_pass(const Eigen::VectorXd &x0, 
+        std::vector<double> &costs,
+        std::vector<Eigen::VectorXd> &states, 
+        std::vector<Eigen::VectorXd> &controls) const;
 
 private:
     int state_dim_ = -1;

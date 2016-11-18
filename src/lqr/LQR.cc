@@ -29,6 +29,27 @@ namespace
 namespace lqr 
 {
 
+void compute_backup( 
+        const Eigen::MatrixXd &A,
+        const Eigen::MatrixXd &B,
+        const Eigen::MatrixXd &Q,
+        const Eigen::MatrixXd &R,
+        const Eigen::MatrixXd &Vt1,
+        Eigen::MatrixXd &Kt,
+        Eigen::MatrixXd &Vt
+        )
+{
+    const int state_dim = A.rows();
+    const int control_dim = B.cols();
+    Kt = (R + B.transpose()*Vt1*B).inverse() * (B.transpose()*Vt1*A);
+    Kt *= -1.0;
+    IS_EQUAL(Kt.rows(), control_dim);
+    IS_EQUAL(Kt.cols(), state_dim);
+
+    const auto tmp = (A + B*Kt);
+    Vt = Q + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
+}
+
 LQR::LQR(const std::vector<Eigen::MatrixXd> &As, 
          const std::vector<Eigen::MatrixXd> &Bs,  
          const std::vector<Eigen::MatrixXd> &Qs, 
@@ -82,17 +103,9 @@ void LQR::solve(std::vector<Eigen::MatrixXd> &Vs)
         const Eigen::MatrixXd &A = As_[t];
         const Eigen::MatrixXd &B = Bs_[t];
         const Eigen::MatrixXd &R = Rs_[t];
-        Eigen::MatrixXd Kt = (R + B.transpose()*Vt1*B).inverse()
-                                        * (B.transpose()*Vt1*A);
-        Kt *= -1.0;
-        IS_EQUAL(Kt.rows(), control_dim_);
-        IS_EQUAL(Kt.cols(), state_dim_);
-        Ks_[t] = Kt;
-
         const Eigen::MatrixXd &Q = Qs_[t];
-        const auto tmp = (A + B*Kt);
-        Vt1 = Q + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
-        Vs[t] = Vt1;
+        lqr::compute_backup(A, B, Q, R, Vt1, Ks_[t], Vs[t]);
+        Vt1 = Vs[t];
     }
 
 }

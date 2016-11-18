@@ -10,14 +10,10 @@
 
 namespace lqr
 {
-
-struct StateCost
-{
-    StateCost(Eigen::VectorXd state, Eigen::VectorXd control, double cost) : x(state), u(control), c(cost) {}
-    Eigen::VectorXd x;
-    Eigen::VectorXd u;
-    double c;
-};
+void compute_backup(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B,
+        const Eigen::MatrixXd &Q, const Eigen::MatrixXd &R,
+        const Eigen::MatrixXd &Vt1,
+        Eigen::MatrixXd &Kt, Eigen::MatrixXd &Vt);
 
 class LQR
 {
@@ -40,7 +36,7 @@ public:
         std::vector<Eigen::VectorXd> &states, 
         std::vector<Eigen::VectorXd> &controls) const;
 
-private:
+//private:
     int state_dim_ = -1;
     int control_dim_  = -1;
 

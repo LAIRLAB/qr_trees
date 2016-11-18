@@ -84,9 +84,11 @@ void iLQR::forward_pass(std::vector<double> &costs,
     IS_TRUE(true_dynamics_);
     IS_TRUE(true_cost_);
 
+    costs.clear(); states.clear(); controls.clear();
+    costs.reserve(T_); states.reserve(T_); controls.reserve(T_);
+
     Eigen::VectorXd xt = expansions_[0].x;
     Eigen::VectorXd ut = Eigen::VectorXd::Zero(control_dim_);
-    costs.reserve(T_);
     for (int t = 0; t < T_; ++t)
     {
         TaylorExpansion &expansion = expansions_[t];
@@ -97,10 +99,10 @@ void iLQR::forward_pass(std::vector<double> &costs,
         Eigen::VectorXd vt = Kt * zt;
         ut = vt + expansion.u;
 
-        const double cost = true_cost_(xt, ut);
-
         expansion.x = xt;
         expansion.u = ut;
+
+        const double cost = true_cost_(xt, ut);
 
         costs.push_back(cost);
         states.push_back(xt);

@@ -32,7 +32,7 @@ public:
     std::vector<Eigen::VectorXd> states();
     std::vector<Eigen::VectorXd> controls();
 
-private:
+//private:
     int state_dim_ = -1;
     int control_dim_  = -1;
     int T_ = -1; // time horizon

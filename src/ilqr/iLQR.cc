@@ -166,8 +166,8 @@ void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
 
     // Control terms.
     R = H.bottomRightCorner(control_dim, control_dim);
-    R = math::project_to_psd(R, 1e-11);
-    math::check_psd(R, 1e-12);
+    R = math::project_to_psd(R, 1e-8);
+    math::check_psd(R, 1e-9);
     expansion.cost.b_u = g_u;
 }
 

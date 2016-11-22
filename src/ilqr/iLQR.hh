@@ -45,6 +45,7 @@ public:
 
     // Feedback control gains.
     std::vector<Eigen::MatrixXd> Ks_;
+    std::vector<Eigen::VectorXd> ks_;
 };
 
 } // namespace lqr

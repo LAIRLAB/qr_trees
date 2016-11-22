@@ -45,6 +45,12 @@ public:
     std::vector<Eigen::MatrixXd> Qs_; 
     std::vector<Eigen::MatrixXd> Rs_;
 
+    int T_ = -1;
+    Eigen::MatrixXd A_; 
+    Eigen::MatrixXd B_;
+    Eigen::MatrixXd Q_; 
+    Eigen::MatrixXd R_;
+
     std::vector<Eigen::MatrixXd> Ks_;
 };
 

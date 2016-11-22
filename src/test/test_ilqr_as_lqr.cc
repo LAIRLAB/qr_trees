@@ -59,22 +59,27 @@ void test_with_lqr_initialization()
     std::srand(1);
 
     // Time horizon.
-    constexpr int T = 6;
+    constexpr int T = 8;
     // State and control dimensions.
     constexpr int state_dim = 3;
-    constexpr int control_dim = 3;
+    constexpr int control_dim = 2;
 
     // Define the dynamics.
     //const Eigen::MatrixXd A = Eigen::MatrixXd::Random(state_dim, state_dim);
-    const Eigen::MatrixXd A = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    Eigen::MatrixXd B = A;
-    //Eigen::MatrixXd B = Eigen::MatrixXd::Identity(state_dim, control_dim);
-    //B(0, 1) = 1;
+    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(state_dim, state_dim);
+    A(0,1)= 1;
+    A(2,1)= 2;
+    
+    Eigen::MatrixXd B = Eigen::MatrixXd::Identity(state_dim, control_dim);
+    //Eigen::MatrixXd B = Eigen::MatrixXd::Random(state_dim, control_dim);
+    B(0, 1) = 1;
     const ilqr::DynamicsFunc linear_dyn = create_linear_dynamics(A, B);
 
     // Define the cost.
-    const Eigen::MatrixXd Q = make_random_psd(state_dim, 1e-11);
-    const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-7);
+    //const Eigen::MatrixXd Q = make_random_psd(state_dim, 1e-11);
+    //const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-7);
+    const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(state_dim, state_dim);
+    const Eigen::MatrixXd R = Eigen::MatrixXd::Identity(control_dim, control_dim);
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R);
 
 
@@ -102,30 +107,7 @@ void test_with_lqr_initialization()
 
     ilqr::iLQR ilqr(linear_dyn, quad_cost, lqr_states, lqr_controls);
     ilqr.backwards_pass(Vs_ilqr, Gs_ilqr);
-    //ilqr.forward_pass(ilqr_costs, ilqr_states, ilqr_controls);
-    ilqr_states = ilqr.states();
-    ilqr_controls = ilqr.controls();
-    
-    for (int t = T-1; t >= 0; t--)
-    {
-        Eigen::VectorXd xt_test =  lqr_states[t]; //Eigen::VectorXd::Random(state_dim); 
-        Eigen::VectorXd xt_diff = Eigen::VectorXd::Ones(state_dim+1);
-        xt_diff.topRows(state_dim) = xt_test- ilqr_states[t];
-
-        Eigen::VectorXd ilqr_value =  (xt_diff.transpose() * Vs_ilqr[t] * xt_diff) + (Gs_ilqr[t]*xt_diff);
-        Eigen::VectorXd lqr_value =  (xt_test.transpose() * Vs_lqr[t] * xt_test);
-
-        WARN(t << ", ilqr_value: " << ilqr_value)
-        WARN("   lqr_value: " << lqr_value)
-
-        //ilqr::compute_backup(ilqr.expansions_[t], Vt1, Gt1, ilqr.Ks_[t], Vs_ilqr[t], Gs_ilqr[t]);
-        //Gt1 = Gs[t];
-        //Vt1 = Vs[t];
-    }
     ilqr.forward_pass(ilqr_costs, ilqr_states, ilqr_controls);
-
-    //return;
-    WARN("\n")
 
 
     double ilqr_cost = 0;
@@ -137,9 +119,9 @@ void test_with_lqr_initialization()
         const auto ilqr_x = ilqr_states[t].transpose();
         const auto ilqr_u = ilqr_controls[t].transpose();
         WARN(",t=" << t << ", xlqr: " << lqr_x);
-        WARN("  " << t << ", xilqr: " << ilqr_x);
-        WARN(",t=" << t << ", ulqr: " << lqr_u);
-        WARN("  " << t << ", uilqr: " << ilqr_u);
+        WARN("   " << t << ", xilqr: " << ilqr_x);
+        WARN("   " << t << ", ulqr: " << lqr_u);
+        WARN("   " << t << ", uilqr: " << ilqr_u);
         ilqr_cost += quad_cost(ilqr_x, ilqr_u);
         IS_ALMOST_EQUAL(quad_cost(ilqr_x, ilqr_u), ilqr_costs[t], 1e-12);
         lqr_cost += quad_cost(lqr_x, lqr_u);

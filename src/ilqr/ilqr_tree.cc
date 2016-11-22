@@ -219,7 +219,7 @@ Eigen::MatrixXd iLQRTree::compute_value_matrix(const std::shared_ptr<PlanNode> &
     // Extract cost terms.
     const Eigen::MatrixXd &Q = node->cost_.Q;
     const Eigen::MatrixXd &P = node->cost_.P;
-    const Eigen::MatrixXd &b_u = node->cost_.b_u;
+    const Eigen::MatrixXd &g_u = node->cost_.g_u;
     // Extract control policy terms.
     const Eigen::MatrixXd &K = node->K_;
     const Eigen::MatrixXd &k = node->k_;
@@ -232,7 +232,7 @@ Eigen::MatrixXd iLQRTree::compute_value_matrix(const std::shared_ptr<PlanNode> &
     Eigen::VectorXd linear_term = cntrl_cross_term*k;
     IS_EQUAL(linear_term.size(), state_dim_ + 1);
 
-    Eigen::MatrixXd constant_term = b_u.transpose() * k;
+    Eigen::MatrixXd constant_term = g_u.transpose() * k;
 
     Eigen::MatrixXd Vt = quadratic_term; 
     Vt.topRightCorner(state_dim_, 1) += linear_term.topRows(state_dim_);
@@ -249,14 +249,14 @@ void iLQRTree::compute_control_policy(std::shared_ptr<PlanNode> &node, const Eig
     // Extract cost terms.
     const Eigen::MatrixXd &P = node->cost_.P;
     const Eigen::MatrixXd &R = node->cost_.R;
-    const Eigen::MatrixXd &b_u = node->cost_.b_u;
+    const Eigen::MatrixXd &g_u = node->cost_.g_u;
 
     node->check_sizes();
 
     const Eigen::MatrixXd inv_cntrl_term = (R + B.transpose()*Vt1*B).inverse();
 
     node->K_ = -1.0 * inv_cntrl_term * (P.transpose() + B.transpose() * Vt1 * A);
-    node->k_ = -1.0 * inv_cntrl_term * b_u; 
+    node->k_ = -1.0 * inv_cntrl_term * g_u; 
 }
 
 } // namespace ilqr

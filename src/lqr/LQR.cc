@@ -41,13 +41,14 @@ void compute_backup(
 {
     const int state_dim = A.rows();
     const int control_dim = B.cols();
-    Kt = (R + B.transpose()*Vt1*B).inverse() * (B.transpose()*Vt1*A);
-    Kt *= -1.0;
+
+    Eigen::MatrixXd inv_term = -1.0*(R + B.transpose()*Vt1*B).inverse();
+    Kt = inv_term*(B.transpose()*Vt1*A);
     IS_EQUAL(Kt.rows(), control_dim);
     IS_EQUAL(Kt.cols(), state_dim);
 
-    const auto tmp = (A + B*Kt);
-    Vt = Q + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
+    const Eigen::MatrixXd tmp = (A + B*Kt);
+    Vt = Q + Kt.transpose()* R * Kt + tmp.transpose()*Vt1*tmp;
 }
 
 LQR::LQR(const std::vector<Eigen::MatrixXd> &As, 
@@ -77,12 +78,17 @@ LQR::LQR(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B,
 {
     state_dim_ = A.rows();
     control_dim_ = B.cols();
+    T_ = T;
 
     check_lqr_matrix_sizes(A, B, Q, R);
-    As_ = std::vector<Eigen::MatrixXd>(T, A);
-    Bs_ = std::vector<Eigen::MatrixXd>(T, B);
-    Qs_ = std::vector<Eigen::MatrixXd>(T, Q);
-    Rs_ = std::vector<Eigen::MatrixXd>(T, R);
+    A_ = A;
+    B_ = B;
+    Q_ = Q;
+    R_ = R;
+    //As_ = std::vector<Eigen::MatrixXd>(T, A);
+    //Bs_ = std::vector<Eigen::MatrixXd>(T, B);
+    //Qs_ = std::vector<Eigen::MatrixXd>(T, Q);
+    //Rs_ = std::vector<Eigen::MatrixXd>(T, R);
 }
 
 void LQR::solve()
@@ -93,19 +99,16 @@ void LQR::solve()
 
 void LQR::solve(std::vector<Eigen::MatrixXd> &Vs)
 {
-    const int T = As_.size();
-    Vs.clear(); Vs.resize(T);
-    Ks_.clear(); Ks_.resize(T);
+    Vs.clear(); Vs.resize(T_);
+    Ks_.clear(); Ks_.resize(T_);
 
     Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_, state_dim_);
-    for (int t = T-1; t >= 0; t--)
+    for (int t = T_-1; t >= 0; t--)
     {
-        const Eigen::MatrixXd &A = As_[t];
-        const Eigen::MatrixXd &B = Bs_[t];
-        const Eigen::MatrixXd &R = Rs_[t];
-        const Eigen::MatrixXd &Q = Qs_[t];
-        lqr::compute_backup(A, B, Q, R, Vt1, Ks_[t], Vs[t]);
-        Vt1 = Vs[t];
+        Eigen::MatrixXd Vt;
+        lqr::compute_backup(A_, B_, Q_, R_, Vt1, Ks_[t], Vt);
+        Vs[t] = Vt;
+        Vt1 = Vt;
     }
 
 }
@@ -115,31 +118,34 @@ void LQR::forward_pass(const Eigen::VectorXd &x0,
         std::vector<Eigen::VectorXd> &states, 
         std::vector<Eigen::VectorXd> &controls) const
 {
-    const int T = As_.size();
-    states.reserve(T);
-    controls.reserve(T);
-    costs.reserve(T);
+    states.clear();
+    controls.clear();
+    costs.clear();
+    states.reserve(T_);
+    controls.reserve(T_);
+    costs.reserve(T_);
 
     Eigen::VectorXd xt = x0;
     Eigen::VectorXd ut = Eigen::VectorXd::Zero(control_dim_);
-    for (int t = 0; t < T; ++t)
+    for (int t = 0; t < T_; ++t)
     {
         const Eigen::MatrixXd &Kt = Ks_[t];
         ut = Kt * xt;
-        const Eigen::VectorXd cost = 0.5*(xt.transpose()*Qs_[t]*xt 
-            + ut.transpose()*Rs_[t]*ut);
-        IS_EQUAL(cost.size(), 1)
+        const Eigen::VectorXd cost_mat = (xt.transpose()*Q_*xt)
+            + (ut.transpose()*R_*ut);
+        IS_EQUAL(cost_mat.size(), 1)
+        double cost = 0.5*cost_mat[0];
 
         states.push_back(xt); 
         controls.push_back(ut);
-        costs.push_back(cost[0]);
+        costs.push_back(cost);
 
         IS_EQUAL(xt.rows(), state_dim_);
-        xt = As_[t] * xt + Bs_[t] * ut;
+        xt = A_ * xt + B_ * ut;
     }
-    IS_EQUAL(states.size(), T);
-    IS_EQUAL(controls.size(), T);
-    IS_EQUAL(costs.size(), T);
+    IS_EQUAL(states.size(), T_);
+    IS_EQUAL(controls.size(), T_);
+    IS_EQUAL(costs.size(), T_);
 }
 
 } // namespace lqr

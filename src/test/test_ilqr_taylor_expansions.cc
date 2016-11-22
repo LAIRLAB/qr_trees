@@ -32,23 +32,18 @@ void test_nonlinear_dynamics_linearization(const int state_dim, const int contro
     Eigen::MatrixXd rep_u = (expansion.u.replicate(1, state_dim)).transpose();
     Eigen::MatrixXd J_x = -1.*(A_true.array()*rep_x.array().sin()); 
     Eigen::MatrixXd J_u = B_true.array()*rep_u.array().cos(); 
-    IS_TRUE(math::is_equal(expansion.dynamics.A.topLeftCorner(state_dim, state_dim), J_x, 1e-3)); // high tolerance since finite differencing is not that great.
-    IS_TRUE(math::is_equal(expansion.dynamics.B.topLeftCorner(state_dim, control_dim), J_u, 1e-3));
-    IS_TRUE(math::is_equal(expansion.dynamics.A.topRightCorner(state_dim, 1), Eigen::MatrixXd::Zero(state_dim, 1)));
-    IS_TRUE(math::is_equal(expansion.dynamics.A.bottomLeftCorner(1, state_dim), Eigen::MatrixXd::Zero(1, state_dim)));
-    IS_TRUE(math::is_equal(expansion.dynamics.A.bottomRightCorner(1, 1), Eigen::MatrixXd::Ones(1, 1)));
+    IS_TRUE(math::is_equal(expansion.dynamics.A, J_x, 1e-3)); // high tolerance since finite differencing is not that great.
+    IS_TRUE(math::is_equal(expansion.dynamics.B, J_u, 1e-3));
 
     const Eigen::VectorXd xt_test = expansion.x + 0.01*Eigen::VectorXd::Random(state_dim);
     const Eigen::VectorXd ut_test = expansion.u + 0.01*Eigen::VectorXd::Random(control_dim);
 
-    Eigen::VectorXd xt_diff = Eigen::VectorXd::Ones(state_dim+1);
-    xt_diff.topRows(state_dim) = xt_test- expansion.x;
+    Eigen::VectorXd xt_diff = xt_test- expansion.x;
     const Eigen::VectorXd ut_diff = ut_test - expansion.u;
 
     // Use the linearization to predict the next x_{t+1}. 
     const Eigen::VectorXd xt1_diff = expansion.dynamics.A*xt_diff + expansion.dynamics.B*ut_diff;
-    IS_EQUAL(xt1_diff.bottomRows(1), Eigen::MatrixXd::Constant(1,1,1.0));
-    IS_LESS_EQUAL(((xt1_diff.topRows(state_dim) + xt1_star) - dyn(xt_test, ut_test)).norm(), 1e-3);
+    IS_LESS_EQUAL(((xt1_diff + xt1_star) - dyn(xt_test, ut_test)).norm(), 1e-3);
 }
 
 void test_linear_dynamics_linearization(const int state_dim, const int control_dim)
@@ -75,11 +70,8 @@ void test_linear_dynamics_linearization(const int state_dim, const int control_d
     expansion.u = Eigen::VectorXd::Random(control_dim);
     ilqr::update_dynamics(linear_dyn, expansion);
 
-    IS_TRUE(math::is_equal(expansion.dynamics.A.topLeftCorner(state_dim, state_dim), A_true, 1e-10)); 
-    IS_TRUE(math::is_equal(expansion.dynamics.B.topLeftCorner(state_dim, control_dim), B_true, 1e-10));
-    IS_TRUE(math::is_equal(expansion.dynamics.A.topRightCorner(state_dim, 1), Eigen::MatrixXd::Zero(state_dim, 1)));
-    IS_TRUE(math::is_equal(expansion.dynamics.A.bottomLeftCorner(1, state_dim), Eigen::MatrixXd::Zero(1, state_dim)));
-    IS_TRUE(math::is_equal(expansion.dynamics.A.bottomRightCorner(1, 1), Eigen::MatrixXd::Ones(1, 1)));
+    IS_TRUE(math::is_equal(expansion.dynamics.A, A_true, 1e-10)); 
+    IS_TRUE(math::is_equal(expansion.dynamics.B, B_true, 1e-10));
 
     // Next linearization point under true dynamics.
     const Eigen::VectorXd xt1_star = linear_dyn(expansion.x, expansion.u);
@@ -87,15 +79,13 @@ void test_linear_dynamics_linearization(const int state_dim, const int control_d
     const Eigen::VectorXd xt_test= Eigen::VectorXd::Random(state_dim);
     const Eigen::VectorXd ut_test = Eigen::VectorXd::Random(control_dim);
 
-    Eigen::VectorXd xt_diff = Eigen::VectorXd::Ones(state_dim+1);
-    xt_diff.topRows(state_dim) = xt_test- expansion.x;
+    Eigen::VectorXd xt_diff = xt_test- expansion.x;
     const Eigen::VectorXd ut_diff = ut_test - expansion.u;
 
     // Use the linearization to predict the next x_{t+1}. 
     const Eigen::VectorXd xt1_diff = expansion.dynamics.A*xt_diff + expansion.dynamics.B*ut_diff;
 
-    IS_EQUAL(xt1_diff.bottomRows(1), Eigen::MatrixXd::Constant(1,1,1.0));
-    IS_TRUE(math::is_equal(xt1_diff.topRows(state_dim) + xt1_star, linear_dyn(xt_test, ut_test), 1e-7));
+    IS_TRUE(math::is_equal(xt1_diff + xt1_star, linear_dyn(xt_test, ut_test), 1e-7));
 }
 
 void test_quadratic_cost_taylor_expansion(const int state_dim, const int control_dim)
@@ -123,23 +113,25 @@ void test_quadratic_cost_taylor_expansion(const int state_dim, const int control
     expansion.u = Eigen::VectorXd::Random(control_dim);
     ilqr::update_cost(cost_func, expansion);
 
-    IS_TRUE(math::is_equal(expansion.cost.Q.topLeftCorner(state_dim, state_dim), Q_true, 1e-10));
-    IS_TRUE(math::is_equal(expansion.cost.Q.topRightCorner(state_dim, 1),  Q_true*expansion.x, 1e-10));
-    IS_TRUE(math::is_equal(expansion.cost.Q.bottomLeftCorner(1, state_dim),  (Q_true*expansion.x).transpose(), 1e-10));
-    IS_TRUE(math::is_equal(expansion.cost.R, R_true, 1e-10)); 
-    IS_TRUE(math::is_equal(expansion.cost.P, Eigen::MatrixXd::Zero(state_dim+1, control_dim), 1e-12)); 
+    IS_TRUE(math::is_equal(expansion.cost.Q, Q_true, 1e-4));
+    IS_TRUE(math::is_equal(expansion.cost.R, R_true, 1e-4));
+    IS_TRUE(math::is_equal(expansion.cost.P, Eigen::MatrixXd::Zero(state_dim, control_dim), 1e-4)); 
+    IS_TRUE(math::is_equal(expansion.cost.g_x,  Q_true*expansion.x, 1e-10));
+    IS_TRUE(math::is_equal(expansion.cost.g_u,  R_true*expansion.u, 1e-3)); // high tolerance since numerical error from finite differencing.
 
     // Next linearization point under true dynamics.
     const Eigen::VectorXd xt_test= Eigen::VectorXd::Random(state_dim);
     const Eigen::VectorXd ut_test = Eigen::VectorXd::Random(control_dim);
 
-    Eigen::VectorXd xt_diff = Eigen::VectorXd::Ones(state_dim+1);
-    xt_diff.topRows(state_dim) = xt_test- expansion.x;
+    Eigen::VectorXd xt_diff = Eigen::VectorXd::Ones(state_dim);
+    xt_diff = xt_test- expansion.x;
     const Eigen::VectorXd ut_diff = ut_test - expansion.u;
-    const Eigen::VectorXd ct_pred = 0.5*(xt_diff.transpose() * expansion.cost.Q * xt_diff)
+    Eigen::VectorXd ct_pred = 0.5*(xt_diff.transpose() * expansion.cost.Q * xt_diff)
             + (xt_diff.transpose()*expansion.cost.P*ut_diff)
             + 0.5*(ut_diff.transpose() * expansion.cost.R * ut_diff)
-            + (expansion.cost.b_u.transpose() * ut_diff);
+            + (expansion.cost.g_u.transpose() * ut_diff)
+            + (expansion.cost.g_x.transpose() * xt_diff);
+    ct_pred.array() += expansion.cost.c;
     IS_EQUAL(ct_pred.size(), 1); 
     IS_ALMOST_EQUAL(ct_pred(0,0), cost_func(xt_test, ut_test), 1e-5);
 }
@@ -179,34 +171,30 @@ void test_exp_cost_taylor_expansion(const int state_dim, const int control_dim)
     const Eigen::MatrixXd Hux_true = ct_xu * (-1.0*wu*expansion.x.transpose()).array() + (1.0/ct_xu) * (g_u_true * g_x_true.transpose()).array(); 
 
     // Since we may need to project to PSD cone, construct and project it.
-    Eigen::MatrixXd Q_true(state_dim + 1, state_dim + 1); 
-    Q_true.topLeftCorner(state_dim, state_dim) = Hxx_true;
-    Q_true.topRightCorner(state_dim, 1) = g_x_true;
-    Q_true.bottomLeftCorner(1, state_dim) = g_x_true.transpose();
-    Q_true.bottomRightCorner(1, 1)(0,0) = 2.0*ct_xu;
-    Q_true = math::project_to_psd(Q_true, 1e-11);
+    Eigen::MatrixXd Q_true = math::project_to_psd(Hxx_true, 1e-11);
     math::check_psd(Q_true, 1e-12);
 
     Eigen::MatrixXd R_true = math::project_to_psd(Huu_true, 1e-8);
     math::check_psd(R_true, 1e-9);
 
     IS_TRUE(math::is_equal(expansion.cost.Q, Q_true, 1e-4));
-    IS_TRUE(math::is_equal(expansion.cost.R, R_true, 1e-4)); 
-    IS_TRUE(math::is_equal(expansion.cost.P.topLeftCorner(state_dim, control_dim), Hux_true.transpose(), 1e-4)); 
-    IS_TRUE(math::is_equal(expansion.cost.P.bottomRows(1), Eigen::MatrixXd::Zero(1,control_dim), 1e-12)); 
-    IS_TRUE(math::is_equal(expansion.cost.b_u,  g_u_true, 1e-3)); // high tolerance since numerical error from finite differencing.
+    IS_TRUE(math::is_equal(expansion.cost.R, R_true, 1e-4));
+    IS_TRUE(math::is_equal(expansion.cost.P, Hux_true.transpose(), 1e-4)); 
+    IS_TRUE(math::is_equal(expansion.cost.g_u,  g_u_true, 1e-3)); // high tolerance since numerical error from finite differencing.
+    IS_TRUE(math::is_equal(expansion.cost.g_x,  g_x_true, 1e-3)); // high tolerance since numerical error from finite differencing.
 
     constexpr double deviation = 1e-2;
     const Eigen::VectorXd xt_test = expansion.x.array() + deviation;
     const Eigen::VectorXd ut_test = expansion.u.array() + deviation;
 
-    Eigen::VectorXd xt_diff = Eigen::VectorXd::Ones(state_dim+1);
-    xt_diff.topRows(state_dim) = xt_test- expansion.x;
+    Eigen::VectorXd xt_diff = xt_test- expansion.x;
     const Eigen::VectorXd ut_diff = ut_test - expansion.u;
-    const Eigen::VectorXd ct_pred = 0.5*(xt_diff.transpose() * expansion.cost.Q * xt_diff)
+    Eigen::VectorXd ct_pred = 0.5*(xt_diff.transpose() * expansion.cost.Q * xt_diff)
             + (xt_diff.transpose()*expansion.cost.P*ut_diff)
             + 0.5*(ut_diff.transpose() * expansion.cost.R * ut_diff)
-            + (expansion.cost.b_u.transpose() * ut_diff);
+            + (expansion.cost.g_u.transpose() * ut_diff)
+            + (expansion.cost.g_x.transpose() * xt_diff);
+    ct_pred.array() += expansion.cost.c;
     IS_EQUAL(ct_pred.size(), 1); 
     IS_ALMOST_EQUAL(ct_pred(0,0), cost_func(xt_test, ut_test), 5e-2);
 }

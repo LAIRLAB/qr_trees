@@ -61,19 +61,25 @@ std::vector<Eigen::VectorXd> iLQR::controls()
 void iLQR::backwards_pass(std::vector<Eigen::MatrixXd> &Vs, std::vector<Eigen::MatrixXd> &Gs)
 {
     Ks_.clear(); Ks_.resize(T_);
+    ks_.clear(); ks_.resize(T_);
     Vs.clear(); Vs.resize(T_);
     Gs.clear(); Gs.resize(T_);
 
-    // [dim(x) + 1] x [dim(x) + 1]
-    Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_+1, state_dim_+1);
-    // [1] * [dim(x) + 1] 
-    Eigen::MatrixXd Gt1 = Eigen::MatrixXd::Zero(1, state_dim_+1);
+    // [dim(x)] x [dim(x)]
+    Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_, state_dim_);
+    // [1] * [dim(x)] 
+    Eigen::MatrixXd Gt1 = Eigen::MatrixXd::Zero(1, state_dim_);
+
+    double Wt1 = 0;
+    double Wt = 0;
 
     for (int t = T_-1; t >= 0; t--)
     {
-        ilqr::compute_backup(expansions_[t], Vt1, Gt1, Ks_[t], Vs[t], Gs[t]);
+        ilqr::compute_backup(expansions_[t], Vt1, Gt1, Wt1, 
+                Ks_[t], ks_[t], Vs[t], Gs[t], Wt);
         Gt1 = Gs[t];
         Vt1 = Vs[t];
+        Wt1 = Wt;
     }
 }
 
@@ -93,10 +99,10 @@ void iLQR::forward_pass(std::vector<double> &costs,
     {
         TaylorExpansion &expansion = expansions_[t];
         const Eigen::MatrixXd &Kt = Ks_[t];
-        Eigen::VectorXd zt = Eigen::VectorXd::Ones(state_dim_+1);
-        zt.topRows(state_dim_) = (xt - expansion.x);
+        const Eigen::MatrixXd &kt = ks_[t];
+        Eigen::VectorXd zt = (xt - expansion.x);
 
-        Eigen::VectorXd vt = Kt * zt;
+        Eigen::VectorXd vt = Kt * zt + kt;
         ut = vt + expansion.u;
 
         expansion.x = xt;

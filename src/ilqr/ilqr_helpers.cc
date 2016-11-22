@@ -10,48 +10,55 @@ namespace ilqr
 void compute_backup(const TaylorExpansion &expansion, 
         const Eigen::MatrixXd &Vt1,
         const Eigen::MatrixXd &Gt1,
+        const double Wt1,
         Eigen::MatrixXd &Kt,
+        Eigen::VectorXd &kt,
         Eigen::MatrixXd &Vt,
-        Eigen::MatrixXd &Gt
+        Eigen::MatrixXd &Gt,
+        double &Wt
         )
 {
-    // [dim(x) + 1] x [dim(x) + 1]
+    // [dim(x)] x [dim(x)]
     const Eigen::MatrixXd &A = expansion.dynamics.A; 
-    // [dim(x) + 1] x [dim(u)]
+    // [dim(x)] x [dim(u)]
     const Eigen::MatrixXd &B = expansion.dynamics.B;
 
-    // [dim(x) + 1] x [dim(u)]
+    // [dim(x)] x [dim(x)]
+    const Eigen::MatrixXd &Q = expansion.cost.Q;        
+    // [dim(x)] x [dim(u)]
     const Eigen::MatrixXd &P = expansion.cost.P;
     // [dim(u)] x [dim(u)]
     const Eigen::MatrixXd &R = expansion.cost.R;
     // [dim(u)] x [1]
-    const Eigen::MatrixXd &g_u = expansion.cost.b_u;
+    const Eigen::VectorXd &g_u = expansion.cost.g_u;
+    const Eigen::VectorXd &g_x = expansion.cost.g_x;
+    const double &c= expansion.cost.c;
 
-    const int state_dim = A.rows()-1;
+    const int state_dim = A.rows();
     IS_GREATER(state_dim, 0);
     IS_EQUAL(state_dim, expansion.x.size());
     const int control_dim = B.cols();
     IS_GREATER(control_dim, 0);
     IS_EQUAL(control_dim, expansion.u.size());
 
-    Eigen::MatrixXd linear_term 
-        = Eigen::MatrixXd::Zero(control_dim, state_dim+1);
-    linear_term.rightCols(1) = g_u + B.transpose()*Gt1.transpose();
+    const Eigen::MatrixXd inv_term = -1.0*(R + B.transpose()*Vt1*B).inverse();
+    Kt = inv_term * (P.transpose() + B.transpose()*Vt1*A); 
+    kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
 
-    Kt = (R + B.transpose()*Vt1*B).inverse()
-                                    * (P.transpose() 
-                                       + B.transpose()*Vt1*A 
-                                       + linear_term);
-    Kt *= -1.0;
     IS_EQUAL(Kt.rows(), control_dim);
-    IS_EQUAL(Kt.cols(), state_dim + 1);
+    IS_EQUAL(Kt.cols(), state_dim);
+    IS_EQUAL(kt.size(), control_dim);
 
-    const Eigen::MatrixXd &Q = expansion.cost.Q;        
     const Eigen::MatrixXd tmp = (A + B*Kt);
-    Vt = Q + Kt.transpose()*R*Kt 
-        + tmp.transpose()*Vt1*tmp + 2.0*P*Kt;
+    Vt = Q + 2.0*(P*Kt) + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
 
-    Gt = g_u.transpose()*Kt + Gt1*tmp; 
+    Gt = kt.transpose()*P.transpose() + kt.transpose()*R*Kt + g_x.transpose() 
+        + g_u.transpose()*Kt + kt.transpose()*B.transpose()*Vt1*tmp + Gt1*tmp;
+
+    const Eigen::VectorXd Wt_mat = 0.5*(kt.transpose()*R*kt) 
+        + g_u.transpose()*kt + Gt1*B*kt 
+        + 0.5*(kt.transpose()*B.transpose()*Vt1*B*kt);
+   Wt = Wt_mat(0) + c + Wt1;
 }
 
 void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansion)
@@ -66,26 +73,16 @@ void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansi
         return Eigen::VectorXd(dynamics_func(pt.topRows(state_dim), pt.bottomRows(control_dim)));
     };
 
-    Eigen::MatrixXd &A = expansion.dynamics.A;
-    A = Eigen::MatrixXd::Zero(state_dim + 1, state_dim + 1);
-
-    Eigen::MatrixXd &B = expansion.dynamics.B;
-    B = Eigen::MatrixXd::Zero(state_dim + 1, control_dim);
-    
     Eigen::VectorXd xu(state_dim + control_dim);
     xu.topRows(state_dim) = expansion.x;
     xu.bottomRows(control_dim) = expansion.u;
     const auto J = math::jacobian(dynamics_wrapper, xu);
 
-    const Eigen::VectorXd xt1 = dynamics_wrapper(xu);
-    IS_EQUAL(xt1, dynamics_func(expansion.x, expansion.u));
-
-    A.topLeftCorner(state_dim, state_dim) =  J.leftCols(state_dim);
-    A.bottomRightCorner(1,1) = Eigen::MatrixXd::Constant(1,1,1.0);
-    IS_EQUAL(A.bottomRightCorner(1,1), Eigen::MatrixXd::Constant(1,1,1.0))
-
-    B.topRows(state_dim) = J.rightCols(control_dim);
-    IS_EQUAL(B.bottomRows(1), Eigen::VectorXd::Zero(control_dim).transpose());
+    Eigen::MatrixXd &A = expansion.dynamics.A;
+    Eigen::MatrixXd &B = expansion.dynamics.B;
+    
+    A =  J.leftCols(state_dim);
+    B = J.rightCols(control_dim);
 
 }
 
@@ -103,12 +100,10 @@ void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
     Eigen::MatrixXd &Q = expansion.cost.Q;
     Eigen::MatrixXd &R = expansion.cost.R;
     Eigen::MatrixXd &P = expansion.cost.P;
+    Eigen::VectorXd &g_x = expansion.cost.g_x;
+    Eigen::VectorXd &g_u = expansion.cost.g_u;
+    double &c= expansion.cost.c;
     
-    Q.resize(state_dim + 1, state_dim + 1);
-    Q.setZero();
-    P.resize(state_dim+1, control_dim); 
-    P.setZero(); 
-
     Eigen::VectorXd xu(state_dim + control_dim);
     xu.topRows(state_dim) = expansion.x;
     xu.bottomRows(control_dim) = expansion.u;
@@ -118,34 +113,24 @@ void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
     constexpr double ZERO_THRESH = 1e-7;
     auto H = math::hessian(cost_wrapper, xu);
     H = H.array() * (H.array().abs() > ZERO_THRESH).cast<double>();
+    Q = H.topLeftCorner(state_dim, state_dim);
+    P = H.topRightCorner(state_dim, control_dim);
+    R = H.bottomRightCorner(control_dim, control_dim);
+
     auto g = math::gradient(cost_wrapper, xu);
     g = g.array() * (g.array().abs() > ZERO_THRESH).cast<double>();
     IS_EQUAL(g.size(), state_dim + control_dim);
-    const auto g_x = g.topRows(state_dim);
-    const auto g_u = g.bottomRows(control_dim);
+    g_x = g.topRows(state_dim);
+    g_u = g.bottomRows(control_dim);
 
-    const double c = cost_wrapper(xu);
-    IS_EQUAL(c, cost_func(expansion.x, expansion.u));
+    c = cost_wrapper(xu);
     
-    Q.topLeftCorner(state_dim, state_dim) 
-        = H.topLeftCorner(state_dim, state_dim);
-    Q.topRightCorner(state_dim, 1) = g_x;
-    Q.bottomLeftCorner(1, state_dim) = g_x.transpose();
-    Q.bottomRightCorner(1, 1) = Eigen::VectorXd::Constant(1,1,2.0*c);
-    IS_EQUAL(Q(state_dim, state_dim), 2.0*c);
-
     Q = math::project_to_psd(Q, 1e-11);
     math::check_psd(Q, 1e-12);
 
-    // Cross terms.
-    P = Eigen::MatrixXd::Zero(state_dim+1, control_dim); 
-    P.topRows(state_dim) = H.topRightCorner(state_dim, control_dim);
-
     // Control terms.
-    R = H.bottomRightCorner(control_dim, control_dim);
     R = math::project_to_psd(R, 1e-8);
     math::check_psd(R, 1e-9);
-    expansion.cost.b_u = g_u;
 }
 
 } // namespace ilqr

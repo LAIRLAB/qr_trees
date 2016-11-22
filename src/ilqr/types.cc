@@ -37,7 +37,7 @@ PlanNode::PlanNode(int state_dim,
     cost_.Q = Eigen::MatrixXd::Zero(state_dim + 1, state_dim + 1);
     cost_.P = Eigen::MatrixXd::Zero(state_dim + 1, control_dim);
     cost_.R = Eigen::MatrixXd::Identity(control_dim, control_dim);
-    cost_.b_u = Eigen::VectorXd(control_dim);
+    cost_.g_u = Eigen::VectorXd(control_dim);
 
     // Initialize other matrices
     K_ = Eigen::MatrixXd::Zero(control_dim, state_dim+1);  
@@ -79,7 +79,7 @@ void PlanNode::check_sizes()
     IS_EQUAL(cost_.P.cols(), control_dim_);
     IS_EQUAL(cost_.R.rows(), control_dim_);
     IS_EQUAL(cost_.R.cols(), control_dim_);
-    IS_EQUAL(cost_.b_u.size(), control_dim_);
+    IS_EQUAL(cost_.g_u.size(), control_dim_);
 
     // Initialize other matrices
     IS_EQUAL(K_.rows(), control_dim_);
@@ -153,7 +153,7 @@ void PlanNode::update_cost()
     cost_.R = H.bottomRightCorner(control_dim_, control_dim_);
     cost_.R = math::project_to_psd(cost_.R, R_MIN_EVAL);
 
-    cost_.b_u = g.bottomRows(control_dim_);
+    cost_.g_u = g.bottomRows(control_dim_);
 }
 
 void PlanNode::set_xstar(const Eigen::VectorXd &x_star)

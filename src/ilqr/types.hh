@@ -43,7 +43,13 @@ struct Cost
     Eigen::MatrixXd R;
 
     // Linear control-cost  matrix. [dim(u)] x [1]
-    Eigen::VectorXd b_u;
+    Eigen::VectorXd g_u;
+
+    // Linear control-cost matrix. [dim(x)] x [1]
+    Eigen::VectorXd g_x;
+
+    // Constant offset term
+    double c;
 };
 
 // Each plan node represents a timestep.

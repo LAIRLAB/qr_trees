@@ -18,8 +18,9 @@ struct TaylorExpansion
 };
 
 void compute_backup(const TaylorExpansion &expansion, 
-        const Eigen::MatrixXd &Vt1, const Eigen::MatrixXd &Gt1,
-        Eigen::MatrixXd &Kt, Eigen::MatrixXd &Vt, Eigen::MatrixXd &Gt);
+        const Eigen::MatrixXd &Vt1, const Eigen::MatrixXd &Gt1, const double Wt1,
+        Eigen::MatrixXd &Kt, Eigen::VectorXd &kt,
+        Eigen::MatrixXd &Vt, Eigen::MatrixXd &Gt, double &Wt);
 
 void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansion);
 

@@ -58,34 +58,35 @@ std::vector<Eigen::VectorXd> iLQR::controls()
     return controls;
 }
 
-void iLQR::backwards_pass(std::vector<Eigen::MatrixXd> &Vs, std::vector<Eigen::MatrixXd> &Gs)
+void iLQR::backwards_pass()
 {
     Ks_.clear(); Ks_.resize(T_);
     ks_.clear(); ks_.resize(T_);
-    Vs.clear(); Vs.resize(T_);
-    Gs.clear(); Gs.resize(T_);
-
     // [dim(x)] x [dim(x)]
     Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_, state_dim_);
     // [1] * [dim(x)] 
     Eigen::MatrixXd Gt1 = Eigen::MatrixXd::Zero(1, state_dim_);
-
+    // 1 dimensional.
     double Wt1 = 0;
+
     double Wt = 0;
+    Eigen::MatrixXd Vt = Vt1; 
+    Eigen::MatrixXd Gt = Gt1; 
 
     for (int t = T_-1; t >= 0; t--)
     {
         ilqr::compute_backup(expansions_[t], Vt1, Gt1, Wt1, 
-                Ks_[t], ks_[t], Vs[t], Gs[t], Wt);
-        Gt1 = Gs[t];
-        Vt1 = Vs[t];
+                Ks_[t], ks_[t], Vt, Gt, Wt);
+        Vt1 = Vt;
+        Gt1 = Gt;
         Wt1 = Wt;
     }
 }
 
 void iLQR::forward_pass(std::vector<double> &costs, 
             std::vector<Eigen::VectorXd> &states,
-            std::vector<Eigen::VectorXd> &controls)
+            std::vector<Eigen::VectorXd> &controls,
+            bool update_linearizations)
 {
     IS_TRUE(true_dynamics_);
     IS_TRUE(true_cost_);
@@ -121,10 +122,13 @@ void iLQR::forward_pass(std::vector<double> &costs,
         IS_EQUAL(xt.rows(), state_dim_);
     }
 
-    for (auto &expansion : expansions_)
+    if (update_linearizations)
     {
-        update_dynamics(true_dynamics_, expansion);
-        update_cost(true_cost_, expansion);
+        for (auto &expansion : expansions_)
+        {
+            update_dynamics(true_dynamics_, expansion);
+            update_cost(true_cost_, expansion);
+        }
     }
 }
 

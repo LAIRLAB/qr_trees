@@ -22,12 +22,13 @@ public:
             const std::vector<Eigen::VectorXd> &Xs, 
             const std::vector<Eigen::VectorXd> &Us);
 
-    void backwards_pass(std::vector<Eigen::MatrixXd> &Vs,
-                        std::vector<Eigen::MatrixXd> &Gs);
+    void backwards_pass();
 
     void forward_pass(std::vector<double> &costs, 
             std::vector<Eigen::VectorXd> &states,
-            std::vector<Eigen::VectorXd> &controls);
+            std::vector<Eigen::VectorXd> &controls, 
+            bool update_linearizations
+            );
 
     std::vector<Eigen::VectorXd> states();
     std::vector<Eigen::VectorXd> controls();

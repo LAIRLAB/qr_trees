@@ -20,7 +20,7 @@ def make_symmetric_random_psd(dim, min_eval=1e-8):
 
 
 if __name__ == "__main__":
-    state_dim = 3
+    state_dim = 8
     control_dim = 2
 
     np.random.seed(1)
@@ -44,6 +44,7 @@ if __name__ == "__main__":
 
     T = 4
     x0 = np.asarray((3, 2, 1))
+    #x0 = np.random.random(state_dim)
 
     lqr = LQR(A, B, Q, R, T)
     lqr.solve()

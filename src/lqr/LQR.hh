@@ -29,7 +29,6 @@ public:
         const int T);
 
     void solve();
-    void solve(std::vector<Eigen::MatrixXd> &Vs);
 
     void forward_pass(const Eigen::VectorXd &x0, 
         std::vector<double> &costs,
@@ -46,10 +45,6 @@ public:
     std::vector<Eigen::MatrixXd> Rs_;
 
     int T_ = -1;
-    Eigen::MatrixXd A_; 
-    Eigen::MatrixXd B_;
-    Eigen::MatrixXd Q_; 
-    Eigen::MatrixXd R_;
 
     std::vector<Eigen::MatrixXd> Ks_;
 };

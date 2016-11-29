@@ -23,7 +23,7 @@ iLQRTree::iLQRTree(int state_dim, int control_dim)
 {
 }
 
-std::shared_ptr<PlanNode> iLQRTree::make_plan_node(const Eigen::VectorXd &x_star, 
+std::shared_ptr<iLQRNode> iLQRTree::make_ilqr_node(const Eigen::VectorXd &x_star, 
                                 const Eigen::VectorXd &u_star, 
                                 const DynamicsFunc &dynamics_func, 
                                 const CostFunc &cost_func,
@@ -32,12 +32,12 @@ std::shared_ptr<PlanNode> iLQRTree::make_plan_node(const Eigen::VectorXd &x_star
     IS_EQUAL(x_star.size(), state_dim_);
     IS_EQUAL(u_star.size(), control_dim_);
 
-    std::shared_ptr<PlanNode> plan_node 
-        = std::make_shared<PlanNode>(x_star, u_star, 
+    std::shared_ptr<iLQRNode> ilqr_node 
+        = std::make_shared<iLQRNode>(x_star, u_star, 
                                      dynamics_func, cost_func, 
                                      probability);
 
-    return plan_node;
+    return ilqr_node;
 }
 
 TreeNodePtr iLQRTree::add_root(const Eigen::VectorXd &x_star, 
@@ -45,23 +45,23 @@ TreeNodePtr iLQRTree::add_root(const Eigen::VectorXd &x_star,
                                const DynamicsFunc &dynamics_func, 
                                const CostFunc &cost_func)
 {
-    return add_root(make_plan_node(x_star, u_star, dynamics_func, cost_func, 1.0)); 
+    return add_root(make_ilqr_node(x_star, u_star, dynamics_func, cost_func, 1.0)); 
 }
 
-TreeNodePtr iLQRTree::add_root(const std::shared_ptr<PlanNode> &plan_node)
+TreeNodePtr iLQRTree::add_root(const std::shared_ptr<iLQRNode> &ilqr_node)
 {
-    tree_ = data::Tree<PlanNode>(plan_node);
+    tree_ = data::Tree<iLQRNode>(ilqr_node);
     return tree_.root();
 }
 
 std::vector<TreeNodePtr> iLQRTree::add_nodes(
-        const std::vector<std::shared_ptr<PlanNode>> &plan_nodes, 
+        const std::vector<std::shared_ptr<iLQRNode>> &ilqr_nodes, 
         TreeNodePtr &parent)
 {
     // Confirm the probabilities in the plan nodes sum to 1.
     const double probability_sum = 
-        std::accumulate(plan_nodes.begin(), plan_nodes.end(), 0.0,
-            [](const double a, const std::shared_ptr<PlanNode> &node) 
+        std::accumulate(ilqr_nodes.begin(), ilqr_nodes.end(), 0.0,
+            [](const double a, const std::shared_ptr<iLQRNode> &node) 
             {
                 return a + node->probability();
             }
@@ -71,10 +71,10 @@ std::vector<TreeNodePtr> iLQRTree::add_nodes(
 
     // Create tree nodes from the plan nodes and add them to the tree.
     std::vector<TreeNodePtr> children;
-    children.reserve(plan_nodes.size());
-    for (const auto &plan_node : plan_nodes)
+    children.reserve(ilqr_nodes.size());
+    for (const auto &ilqr_node : ilqr_nodes)
     {
-        children.emplace_back(tree_.add_child(parent, plan_node));
+        children.emplace_back(tree_.add_child(parent, ilqr_node));
     }
     return children;
 }
@@ -96,9 +96,9 @@ void iLQRTree::forward_pass(const double alpha)
         //TODO: Implement line search over this function for the forward pass.
         Eigen::VectorXd xt1, ut;
         const Eigen::VectorXd &xt = process_pair.second;
-        auto plan_node = process_pair.first->item();
+        auto ilqr_node = process_pair.first->item();
 
-        forward_node(plan_node, xt, alpha, true, ut, xt1); 
+        forward_node(ilqr_node, xt, alpha, true, ut, xt1); 
         for (auto child : process_pair.first->children())
         {
             to_process.emplace_front(child, xt1);
@@ -108,7 +108,7 @@ void iLQRTree::forward_pass(const double alpha)
     }
 }
 
-void iLQRTree::forward_node(std::shared_ptr<PlanNode>& node, 
+void iLQRTree::forward_node(std::shared_ptr<iLQRNode>& node, 
                             const Eigen::MatrixXd &xt, 
                             const double alpha, 
                             const bool update_expansion,
@@ -164,7 +164,7 @@ void iLQRTree::control_and_value_for_leaves()
    for (auto &leaf: leaf_nodes)
    {
        IS_EQUAL(leaf->depth(), first_depth);
-       std::shared_ptr<PlanNode> node = leaf->item();
+       std::shared_ptr<iLQRNode> node = leaf->item();
        // Compute the leaf node's control policy K, k using a Zero Value matrix for 
        // the future.
        node->bellman_backup(ZERO_VALUE_);
@@ -200,11 +200,11 @@ std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> 
        auto &children = parent_children_pair.second;
        for (auto &child : children)
        {
-           const std::shared_ptr<PlanNode> &node = child->item();
+           const std::shared_ptr<iLQRNode> &node = child->item();
            add_weighted_value(node->probability(), node->value(), Jtilde);
        }
 
-       std::shared_ptr<PlanNode> parent_node = parent_children_pair.first->item();
+       std::shared_ptr<iLQRNode> parent_node = parent_children_pair.first->item();
        // Compute the parent node's control policy and value function from the 
        // linearly weighted value functions of the child nodes.
        parent_node->bellman_backup(Jtilde);

@@ -1,5 +1,5 @@
 //
-// Helper data structures and types for Tree-iLQR.
+// Underlying iLQRNode for Tree-iLQR.
 //
 
 #pragma once
@@ -15,16 +15,16 @@ namespace ilqr
 {
 
 // Each plan node represents a timestep.
-class PlanNode
+class iLQRNode
 {
 public:
-    PlanNode(const int state_dim, 
+    iLQRNode(const int state_dim, 
              const int control_dim, 
              const DynamicsFunc &dynamics_func, 
              const CostFunc &cost_func,
              const double probablity);
 
-    PlanNode(const Eigen::VectorXd &x_star,
+    iLQRNode(const Eigen::VectorXd &x_star,
              const Eigen::VectorXd &u_star,
              const DynamicsFunc &dynamics_func, 
              const CostFunc &cost_func,
@@ -93,8 +93,8 @@ private:
     Eigen::VectorXd orig_ustar_; 
 };
 
-// Allows the PlanNode to be printed.
-std::ostream& operator<<(std::ostream& os, const ilqr::PlanNode& node);
+// Allows the iLQRNode to be printed.
+std::ostream& operator<<(std::ostream& os, const ilqr::iLQRNode& node);
 
 } // namespace ilqr
 

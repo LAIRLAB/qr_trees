@@ -51,9 +51,20 @@ ilqr::CostFunc create_quadratic_cost(const Eigen::MatrixXd &Q, const Eigen::Matr
 
 Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val)
 {
+    constexpr double MIN_CON = 1e1;
     Eigen::MatrixXd tmp = 10.*Eigen::MatrixXd::Random(dim, dim);
-    Eigen::MatrixXd tmp2 = (tmp + tmp.transpose())/2.0;
-    return math::project_to_psd(tmp2, min_eig_val);
+    Eigen::MatrixXd symmetric_mat = (tmp + tmp.transpose())/2.0;
+
+    const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(symmetric_mat);
+    Eigen::VectorXd evals = es.eigenvalues();
+    const Eigen::MatrixXd evecs = es.eigenvectors();
+    evals = evals.cwiseMax(Eigen::VectorXd::Constant(dim, min_eig_val));
+    const double condition = evals(evals.size()-1) / evals(0);
+    if (condition < MIN_CON)
+    {
+        evals(evals.size()-1) = evals(0)*MIN_CON;
+    }
+    return evecs * evals.asDiagonal() * evecs.transpose();
 }
 
 }
@@ -73,7 +84,7 @@ void test_with_lqr_initialization(const int state_dim,
 
     // Define the cost.
     const Eigen::MatrixXd Q = make_random_psd(state_dim, 1e-11);
-    const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-7);
+    const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-1);
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R);
 
 
@@ -106,6 +117,7 @@ void test_with_lqr_initialization(const int state_dim,
         const Eigen::VectorXd lqr_u = lqr_controls[t];
         const Eigen::VectorXd ilqr_x = ilqr_states[t];
         const Eigen::VectorXd ilqr_u = ilqr_controls[t];
+
         IS_TRUE(math::is_equal(lqr_x, ilqr_x, TOL));
         IS_TRUE(math::is_equal(lqr_u, ilqr_u, TOL));
 
@@ -152,24 +164,16 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
     // Define the dynamics.
     const Eigen::MatrixXd A = Eigen::MatrixXd::Random(state_dim, state_dim);
     const Eigen::MatrixXd B = Eigen::MatrixXd::Random(state_dim, control_dim);
-    //Eigen::MatrixXd A = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    //A(0,1) = 1;
-    //A(2,1) = 2;
-    //Eigen::MatrixXd B = Eigen::MatrixXd::Identity(state_dim, control_dim);
-    //B(0,1) = 1;
     const ilqr::DynamicsFunc linear_dyn = create_linear_dynamics(A, B);
 
     // Define the cost.
-    //const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(state_dim, state_dim);
-    //const Eigen::MatrixXd R = Eigen::MatrixXd::Identity(control_dim, control_dim);
     const Eigen::MatrixXd Q = make_random_psd(state_dim, 1e-11);
-    const Eigen::MatrixXd R = make_random_psd(control_dim, 1e1);
+    const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-3);
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R);
 
 
     // Create a list of initial states for the iLQR. 
     Eigen::VectorXd x0 = Eigen::VectorXd::Random(state_dim);
-    //x0 << 3, 2, 1;
     
     // Storage for regular LQR.
     std::vector<Eigen::VectorXd> lqr_states, lqr_controls;
@@ -189,7 +193,6 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
     {
         ilqr_init_states.push_back(xt);
         const Eigen::VectorXd ut = Eigen::VectorXd::Random(control_dim);
-        //const Eigen::VectorXd ut = Eigen::VectorXd::Ones(control_dim);
         ilqr_init_controls.push_back(ut);
         xt = linear_dyn(xt, ut);
     }
@@ -266,7 +269,7 @@ int main()
     test_converge_to_lqr(5,5,8);
     test_converge_to_lqr(3,2,4);
     test_converge_to_lqr(3,2,8);
-    test_converge_to_lqr(3,2,150);
+    test_converge_to_lqr(3,2,50);
     test_converge_to_lqr(1,1,8);
     // Should not work with only 1 timstep. 
     DOES_THROW(test_converge_to_lqr(3, 2, 1));

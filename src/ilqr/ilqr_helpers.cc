@@ -7,17 +7,23 @@
 namespace ilqr
 {
 
-void compute_backup(const TaylorExpansion &expansion, 
-        const Eigen::MatrixXd &Vt1,
-        const Eigen::MatrixXd &Gt1,
-        const double Wt1,
-        Eigen::MatrixXd &Kt,
-        Eigen::VectorXd &kt,
-        Eigen::MatrixXd &Vt,
-        Eigen::MatrixXd &Gt,
-        double &Wt
-        )
+QuadraticValue::QuadraticValue(const int state_dim) :
+    V_(Eigen::MatrixXd::Zero(state_dim, state_dim)), 
+    G_(Eigen::MatrixXd::Zero(1, state_dim)),
+    W_(0)
 {
+}
+
+void compute_backup(const TaylorExpansion &expansion, const QuadraticValue &Jt1,
+        Eigen::MatrixXd &Kt, Eigen::VectorXd &kt, QuadraticValue &Jt)
+{
+    const Eigen::MatrixXd &Vt1 = Jt1.V();
+    const Eigen::MatrixXd &Gt1 = Jt1.G();
+    const double Wt1 = Jt1.W();
+    Eigen::MatrixXd &Vt = Jt.V();
+    Eigen::MatrixXd &Gt = Jt.G();
+    double &Wt = Jt.W();
+
     // [dim(x)] x [dim(x)]
     const Eigen::MatrixXd &A = expansion.dynamics.A; 
     // [dim(x)] x [dim(u)]
@@ -58,7 +64,7 @@ void compute_backup(const TaylorExpansion &expansion,
     const Eigen::VectorXd Wt_mat = 0.5*(kt.transpose()*R*kt) 
         + g_u.transpose()*kt + Gt1*B*kt 
         + 0.5*(kt.transpose()*B.transpose()*Vt1*B*kt);
-   Wt = Wt_mat(0) + c + Wt1;
+    Wt = Wt_mat(0) + c + Wt1;
 }
 
 void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansion)

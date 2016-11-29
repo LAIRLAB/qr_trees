@@ -62,24 +62,13 @@ void iLQR::backwards_pass()
 {
     Ks_.clear(); Ks_.resize(T_);
     ks_.clear(); ks_.resize(T_);
-    // [dim(x)] x [dim(x)]
-    Eigen::MatrixXd Vt1 = Eigen::MatrixXd::Zero(state_dim_, state_dim_);
-    // [1] * [dim(x)] 
-    Eigen::MatrixXd Gt1 = Eigen::MatrixXd::Zero(1, state_dim_);
-    // 1 dimensional.
-    double Wt1 = 0;
-
-    double Wt = 0;
-    Eigen::MatrixXd Vt = Vt1; 
-    Eigen::MatrixXd Gt = Gt1; 
-
+    ilqr::QuadraticValue Jt1(state_dim_);
+    ilqr::QuadraticValue Jt(state_dim_);
     for (int t = T_-1; t >= 0; t--)
     {
-        ilqr::compute_backup(expansions_[t], Vt1, Gt1, Wt1, 
-                Ks_[t], ks_[t], Vt, Gt, Wt);
-        Vt1 = Vt;
-        Gt1 = Gt;
-        Wt1 = Wt;
+        ilqr::compute_backup(expansions_[t], Jt1, 
+                Ks_[t], ks_[t], Jt);
+        Jt1 = Jt;
     }
 }
 
@@ -95,7 +84,6 @@ void iLQR::forward_pass(std::vector<double> &costs,
     costs.reserve(T_); states.reserve(T_); controls.reserve(T_);
 
     Eigen::VectorXd xt = expansions_[0].x;
-    Eigen::VectorXd ut = Eigen::VectorXd::Zero(control_dim_);
     for (int t = 0; t < T_; ++t)
     {
         TaylorExpansion &expansion = expansions_[t];
@@ -103,11 +91,8 @@ void iLQR::forward_pass(std::vector<double> &costs,
         const Eigen::MatrixXd &kt = ks_[t];
         Eigen::VectorXd zt = (xt - expansion.x);
 
-        Eigen::VectorXd vt = Kt * zt + kt;
-        ut = vt + expansion.u;
-
-        expansion.x = xt;
-        expansion.u = ut;
+        const Eigen::VectorXd vt = Kt * zt + kt;
+        const Eigen::VectorXd ut = vt + expansion.u;
 
         const double cost = true_cost_(xt, ut);
 
@@ -124,8 +109,12 @@ void iLQR::forward_pass(std::vector<double> &costs,
 
     if (update_linearizations)
     {
-        for (auto &expansion : expansions_)
+        for (int t = 0; t < T_; ++t)
         {
+            TaylorExpansion &expansion = expansions_[t];
+            expansion.x = states[t];
+            expansion.u = controls[t];
+
             update_dynamics(true_dynamics_, expansion);
             update_cost(true_cost_, expansion);
         }

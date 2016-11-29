@@ -19,7 +19,7 @@ namespace ilqr
 iLQRTree::iLQRTree(int state_dim, int control_dim)
     : state_dim_(state_dim),
       control_dim_(control_dim),
-      ZERO_VALUE_MATRIX_(Eigen::MatrixXd::Zero(state_dim + 1, state_dim + 1))
+      ZERO_VALUE_(state_dim)
 {
 }
 
@@ -33,24 +33,17 @@ std::shared_ptr<PlanNode> iLQRTree::make_plan_node(const Eigen::VectorXd &x_star
     IS_EQUAL(u_star.size(), control_dim_);
 
     std::shared_ptr<PlanNode> plan_node 
-        = std::make_shared<PlanNode>(state_dim_, control_dim_, dynamics_func, cost_func, probability);
-
-    // Add node creation, the nominal state/control and the forward pass state/control used for 
-    // differentiating the Dynamics and cost function are the same.
-    plan_node->set_xstar(x_star);
-    plan_node->set_ustar(u_star);
-    plan_node->set_x(x_star);
-    plan_node->set_u(u_star);
-
-    // Update the linearization and quadraticization of the dynamics and cost respectively.
-    plan_node->update_dynamics();
-    plan_node->update_cost();
+        = std::make_shared<PlanNode>(x_star, u_star, 
+                                     dynamics_func, cost_func, 
+                                     probability);
 
     return plan_node;
 }
 
-TreeNodePtr iLQRTree::add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd &u_star, 
-        const DynamicsFunc &dynamics_func, const CostFunc &cost_func)
+TreeNodePtr iLQRTree::add_root(const Eigen::VectorXd &x_star, 
+                               const Eigen::VectorXd &u_star, 
+                               const DynamicsFunc &dynamics_func, 
+                               const CostFunc &cost_func)
 {
     return add_root(make_plan_node(x_star, u_star, dynamics_func, cost_func, 1.0)); 
 }
@@ -61,7 +54,8 @@ TreeNodePtr iLQRTree::add_root(const std::shared_ptr<PlanNode> &plan_node)
     return tree_.root();
 }
 
-std::vector<TreeNodePtr> iLQRTree::add_nodes(const std::vector<std::shared_ptr<PlanNode>> &plan_nodes, 
+std::vector<TreeNodePtr> iLQRTree::add_nodes(
+        const std::vector<std::shared_ptr<PlanNode>> &plan_nodes, 
         TreeNodePtr &parent)
 {
     // Confirm the probabilities in the plan nodes sum to 1.
@@ -69,10 +63,11 @@ std::vector<TreeNodePtr> iLQRTree::add_nodes(const std::vector<std::shared_ptr<P
         std::accumulate(plan_nodes.begin(), plan_nodes.end(), 0.0,
             [](const double a, const std::shared_ptr<PlanNode> &node) 
             {
-                return a + node->probability_;
+                return a + node->probability();
             }
             );
-    IS_ALMOST_EQUAL(probability_sum, 1.0, EPS); // Throw error if sum is not close to 1.0
+    // Throw error if sum is not close to 1.0
+    IS_ALMOST_EQUAL(probability_sum, 1.0, EPS); 
 
     // Create tree nodes from the plan nodes and add them to the tree.
     std::vector<TreeNodePtr> children;
@@ -92,17 +87,18 @@ TreeNodePtr iLQRTree::root()
 void iLQRTree::forward_pass(const double alpha)
 {
     // Process from the end of the list, but start at the beginning.
-    std::list<std::pair<TreeNodePtr, Eigen::MatrixXd>> to_process;
+    std::list<std::pair<TreeNodePtr, Eigen::VectorXd>> to_process;
     // First x linearization is just from the root, not from rolling out dynamics.
-    Eigen::VectorXd xt = tree_.root()->item()->x();
-    to_process.emplace_front(tree_.root(), xt);
+    to_process.emplace_front(tree_.root(), tree_.root()->item()->x());
     while (!to_process.empty())
     {
         auto &process_pair = to_process.back();
         //TODO: Implement line search over this function for the forward pass.
-        const Eigen::MatrixXd xt1 = forward_node(process_pair.first->item(), 
-                process_pair.second, alpha); 
-        IS_EQUAL(xt1(state_dim_), 1);
+        Eigen::VectorXd xt1, ut;
+        const Eigen::VectorXd &xt = process_pair.second;
+        auto plan_node = process_pair.first->item();
+
+        forward_node(plan_node, xt, alpha, true, ut, xt1); 
         for (auto child : process_pair.first->children())
         {
             to_process.emplace_front(child, xt1);
@@ -112,39 +108,40 @@ void iLQRTree::forward_pass(const double alpha)
     }
 }
 
-Eigen::MatrixXd iLQRTree::forward_node(std::shared_ptr<PlanNode> node, 
-        const Eigen::MatrixXd &xt, 
-        const double alpha)
+void iLQRTree::forward_node(std::shared_ptr<PlanNode>& node, 
+                            const Eigen::MatrixXd &xt, 
+                            const double alpha, 
+                            const bool update_expansion,
+                            Eigen::VectorXd &ut,
+                            Eigen::VectorXd &xt1)
 {
-    // Compute difference from where the node is at now during the forward pass versus the 
-    // linearization point from before.
-    Eigen::VectorXd dx_t = (xt - node->x());
-    dx_t(state_dim_) = 1.0; // Needs to be in homogenous coordinates
-    const Eigen::VectorXd du_t = node->K_ * dx_t + node->k_;
+    // Compute difference from where the node is at now during the forward pass
+    // versus the linearization point from before.
+    const Eigen::VectorXd zt = (xt - node->x()); const Eigen::VectorXd vt =
+        (node->K()*zt) + node->k();
 
     // Set the new linearization point at the new xt for the node.
-    node->set_x(xt);
-    const Eigen::MatrixXd ut = alpha*du_t + node->u();
-    node->set_u(ut);
-    node->update_dynamics(); 
-    node->update_cost();
+    ut = alpha*vt + node->u();
 
-    // The upper right corner of A has x_{t+1} = f(x_t,u_t), 
-    // i.e. the evaluation of the dynamics at x_t,u_t
-    Eigen::VectorXd xt1 = Eigen::VectorXd::Ones(state_dim_+1);
-    xt1.topRows(state_dim_) = node->dynamics_.A.topRightCorner(state_dim_, 1);
-    return xt1;
+    xt1 = node->dynamics_func()(xt, ut);
+
+    if (update_expansion) 
+    {
+        node->update_expansion(xt, ut); 
+    }
 }
 
 
 
 void iLQRTree::bellman_tree_backup()
 {
-   // Special case to compute the control policy and value matrices for the leaf nodes.
+   // Special case to compute the control policy and value matrices for the 
+   // leaf nodes.
    control_and_value_for_leaves();
 
-   // Start at all the leaf nodes (currently assume they are all at the same depth) and work our
-   // way up the tree until we get the root node (single node at depth = 0).
+   // Start at all the leaf nodes (currently assume they are all at the same
+   // depth) and work our way up the tree until we get the root node (single
+   // node at depth = 0).
    auto all_children = tree_.leaf_nodes();
    while (!(all_children.size() == 1 && all_children.front()->depth() == 0))
    {
@@ -158,105 +155,70 @@ void iLQRTree::control_and_value_for_leaves()
 {
    auto leaf_nodes = tree_.leaf_nodes();
 
-   // Confirm all leaves are at the same depth in the tree. This isn't necessary for the
-   // general algorithm, but we need it for the current implementation.
-   const int FIRST_DEPTH = leaf_nodes.size() > 0 ? leaf_nodes.front()->depth() : -1;
+   // Confirm all leaves are at the same depth in the tree. This isn't necessary
+   // for the general algorithm, but we need it for the current implementation.
+   const int first_depth = leaf_nodes.size() > 0 
+                               ? leaf_nodes.front()->depth() 
+                               : -1;
+
    for (auto &leaf: leaf_nodes)
    {
-       IS_EQUAL(leaf->depth(), FIRST_DEPTH);
+       IS_EQUAL(leaf->depth(), first_depth);
        std::shared_ptr<PlanNode> node = leaf->item();
-       // Compute the leaf node's control policy K, k using a Zero Value matrix for the future.
-       compute_control_policy(node, ZERO_VALUE_MATRIX_);
-       node->V_ = compute_value_matrix(node, ZERO_VALUE_MATRIX_);
+       // Compute the leaf node's control policy K, k using a Zero Value matrix for 
+       // the future.
+       node->bellman_backup(ZERO_VALUE_);
    }
 }
 
 std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> &all_children)
 {
-   // Hash the leaves by their parent so we can process all the children for a parent.    
+
+   // Hash the leaves by their parent so we can process all the children for a
+   // parent.    
    std::unordered_map<TreeNodePtr, std::list<TreeNodePtr>> parent_map;
 
-   // Confirm all children are at the same depth in the tree. This isn't necessary for the
-   // general algorithm, but we need it for the current implementation.
-   const int FIRST_DEPTH = all_children.size() > 0 ? all_children.front()->depth() : -1;
+   // Confirm all children are at the same depth in the tree. This isn't
+   // necessary for the general algorithm, but we need it for the current
+   // implementation.
+   const int first_depth = all_children.size() > 0 
+                           ? all_children.front()->depth() 
+                           : -1;
+
    for (auto &child : all_children)
    {
-       IS_EQUAL(child->depth(), FIRST_DEPTH);
+       IS_EQUAL(child->depth(), first_depth);
        parent_map[child->parent()].push_back(child);
    }
 
    std::list<TreeNodePtr> parents;
    for (auto &parent_children_pair : parent_map)
    {
-       // Compute the weighted \tilde{V}_{t+1} = \sum_k p_k V_{T+1}^{(k)} matrix by computing the
-       // probability-weighted average 
-       Eigen::MatrixXd Vtilde = ZERO_VALUE_MATRIX_;
+       // Compute the weighted \tilde{J}_{t+1} = \sum_k p_k J_{T+1}^{(k)} matrix
+       // by computing the probability-weighted average 
+       QuadraticValue Jtilde = ZERO_VALUE_;
        auto &children = parent_children_pair.second;
        for (auto &child : children)
        {
-           const std::shared_ptr<PlanNode> &child_node = child->item();
-           Vtilde += child_node->probability_ * child_node->V_;
+           const std::shared_ptr<PlanNode> &node = child->item();
+           add_weighted_value(node->probability(), node->value(), Jtilde);
        }
 
        std::shared_ptr<PlanNode> parent_node = parent_children_pair.first->item();
-       // Compute the parent node's control policy K, k using Vtilde.
-       compute_control_policy(parent_node, Vtilde);
-       // Compute parent's Vt from this the Vtilde (from T+1) and the control policy K,k computed above.
-       parent_node->V_ = compute_value_matrix(parent_node, Vtilde);
-
+       // Compute the parent node's control policy and value function from the 
+       // linearly weighted value functions of the child nodes.
+       parent_node->bellman_backup(Jtilde);
        parents.push_back(parent_children_pair.first);
    }
 
    return parents;
 }
-
-Eigen::MatrixXd iLQRTree::compute_value_matrix(const std::shared_ptr<PlanNode> &node, 
-                                               const Eigen::MatrixXd &Vt1)
+void iLQRTree::add_weighted_value(const double probability, 
+        const QuadraticValue &a, QuadraticValue &b) 
 {
-    // Extract dynamics terms.
-    const Eigen::MatrixXd &A = node->dynamics_.A;
-    const Eigen::MatrixXd &B = node->dynamics_.B;
-    // Extract cost terms.
-    const Eigen::MatrixXd &Q = node->cost_.Q;
-    const Eigen::MatrixXd &P = node->cost_.P;
-    const Eigen::MatrixXd &g_u = node->cost_.g_u;
-    // Extract control policy terms.
-    const Eigen::MatrixXd &K = node->K_;
-    const Eigen::MatrixXd &k = node->k_;
-
-    const Eigen::MatrixXd cntrl_cross_term = P + A.transpose() * Vt1 * B;
-    Eigen::MatrixXd quadratic_term = Q + A.transpose() * Vt1 * A + cntrl_cross_term*K;
-    IS_EQUAL(quadratic_term.rows(), state_dim_ + 1);
-    IS_EQUAL(quadratic_term.cols(), state_dim_ + 1);
-
-    Eigen::VectorXd linear_term = cntrl_cross_term*k;
-    IS_EQUAL(linear_term.size(), state_dim_ + 1);
-
-    Eigen::MatrixXd constant_term = g_u.transpose() * k;
-
-    Eigen::MatrixXd Vt = quadratic_term; 
-    Vt.topRightCorner(state_dim_, 1) += linear_term.topRows(state_dim_);
-    Vt.bottomLeftCorner(1, state_dim_) += linear_term.topRows(state_dim_).transpose();
-    Vt.bottomRightCorner(1, 1) += constant_term;
-
-    return Vt;
-}
-
-void iLQRTree::compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1)
-{
-    const Eigen::MatrixXd &A = node->dynamics_.A;
-    const Eigen::MatrixXd &B = node->dynamics_.B;
-    // Extract cost terms.
-    const Eigen::MatrixXd &P = node->cost_.P;
-    const Eigen::MatrixXd &R = node->cost_.R;
-    const Eigen::MatrixXd &g_u = node->cost_.g_u;
-
-    node->check_sizes();
-
-    const Eigen::MatrixXd inv_cntrl_term = (R + B.transpose()*Vt1*B).inverse();
-
-    node->K_ = -1.0 * inv_cntrl_term * (P.transpose() + B.transpose() * Vt1 * A);
-    node->k_ = -1.0 * inv_cntrl_term * g_u; 
+    b.V() += probability * a.V();
+    b.G() += probability * a.G();
+    b.W() += probability * a.W();
 }
 
 } // namespace ilqr

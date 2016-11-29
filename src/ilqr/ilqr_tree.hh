@@ -27,25 +27,28 @@ public:
     iLQRTree(int state_dim, int control_dim);
     virtual ~iLQRTree() = default;
 
-    // Construct a PlanNode which represents the dynamics, cost functions as well as the state
-    // and control policy at a specific time step along the tree. Nominal state and control inputs
-    // are passed and used for the initial Taylor expansions of the cost and dynamics functions.
+    // Construct a PlanNode which represents the dynamics, cost functions as
+    // well as the state and control policy at a specific time step along the
+    // tree. Nominal state and control inputs are passed and used for the
+    // initial Taylor expansions of the cost and dynamics functions.
     std::shared_ptr<PlanNode> make_plan_node(const Eigen::VectorXd &x_star,
-                                             const Eigen::VectorXd &u_star,
-                                             const DynamicsFunc &dynamics,
-                                             const CostFunc &cost,
-                                             const double probablity);
+            const Eigen::VectorXd &u_star, const DynamicsFunc &dynamics, const
+            CostFunc &cost, const double probablity);
 
-    // Add the root node to the iLQR Tree with similar arguments to the make_plan_node function.
-    TreeNodePtr add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd &u_star, 
-            const DynamicsFunc &dynamics, const CostFunc &cost);
+    // Add the root node to the iLQR Tree with similar arguments to the
+    // make_plan_node function.
+    TreeNodePtr add_root(const Eigen::VectorXd &x_star, const Eigen::VectorXd
+            &u_star, const DynamicsFunc &dynamics, const CostFunc &cost);
     
-    // Add a PlanNode as the root node to the iLQR Tree. Requires the probability to be 1. 
+    // Add a PlanNode as the root node to the iLQR Tree. Requires the
+    // probability to be 1. 
     TreeNodePtr add_root(const std::shared_ptr<PlanNode> &plan_node);
 
-    // Add a list of PlanNodes as children under a parent. The probabilities must sum to 1.
-    std::vector<TreeNodePtr> add_nodes(const std::vector<std::shared_ptr<PlanNode>> &plan_nodes, 
-            TreeNodePtr &parent);
+    // Add a list of PlanNodes as children under a parent. The probabilities
+    // must sum to 1.
+    std::vector<TreeNodePtr> add_nodes(const
+            std::vector<std::shared_ptr<PlanNode>> &plan_nodes, TreeNodePtr
+            &parent);
 
     // Get the root node of the Tree.
     TreeNodePtr root();
@@ -65,29 +68,31 @@ private:
 
     // Zeros matrix of size [state_dim +1] x [state_dim +1]. Used as
     // initialization for the zeros matrix.
-    const Eigen::MatrixXd ZERO_VALUE_MATRIX_; 
+    const QuadraticValue ZERO_VALUE_; 
 
     // The alpha is the step size to use in the control application.
-    Eigen::MatrixXd forward_node(std::shared_ptr<PlanNode> node, 
+    void forward_node(std::shared_ptr<PlanNode>& node, 
                                  const Eigen::MatrixXd &xt, 
-                                 const double alpha);
+                                 const double alpha,
+                                 const bool update_expansion,
+                                 Eigen::VectorXd &ut,
+                                 Eigen::VectorXd &xt1
+                                 );
 
-    // Special case for just the leaves of the tree. We can compute this by giving the leaves
-    // synthetic children with $V_{T+1} = 0$.
+    // Special case for just the leaves of the tree. We can compute this by
+    // giving the leaves synthetic children with $V_{T+1} = 0$.
     void control_and_value_for_leaves();
 
-    // Backups the value matrix and control gains matrix from the children of the node to get 
-    // the value and control policies for the parents of the children. Returns a list of all the
-    // parents.
-    std::list<TreeNodePtr> backup_to_parents(const std::list<TreeNodePtr> &all_children);
+    // Backups the value matrix and control gains matrix from the children of
+    // the node to get the value and control policies for the parents of the
+    // children. Returns a list of all the parents.
+    std::list<TreeNodePtr> backup_to_parents(const std::list<TreeNodePtr>
+            &all_children);
 
-    // Helper to compute the value matrix for plan_node given a child's V_{t+1} value matrix.
-    // Returns the result and does not store the result in the PlanNode.
-    Eigen::MatrixXd compute_value_matrix(const std::shared_ptr<PlanNode> &node, 
-            const Eigen::MatrixXd &Vt1);
-
-    // Helper to compute the feedback and feedforward control policies. Stores them in the PlanNode.
-    void compute_control_policy(std::shared_ptr<PlanNode> &node, const Eigen::MatrixXd &Vt1);
+    // Computes the added weighted quadratic value 
+    // b += probability*a. Each term in 'a' is scaled linearily by probability. 
+    static void add_weighted_value(const double probability, 
+            const QuadraticValue &a, QuadraticValue &b);
 };
 
 } // namespace ilqr

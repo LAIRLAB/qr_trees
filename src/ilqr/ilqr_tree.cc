@@ -84,7 +84,7 @@ TreeNodePtr iLQRTree::root()
     return tree_.root();
 }
 
-void iLQRTree::forward_pass(const double alpha)
+void iLQRTree::forward_tree_update(const double alpha)
 {
     // Process from the end of the list, but start at the beginning.
     std::list<std::pair<TreeNodePtr, Eigen::VectorXd>> to_process;

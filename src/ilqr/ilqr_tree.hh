@@ -55,10 +55,17 @@ public:
 
     // Forward pass to generate new nominal points for iLQR.
     // The step-size is controlled by alpha (alpha * K).
-    void forward_pass(const double alpha);
+    void forward_tree_update(const double alpha);
 
     // Do a full bellman backup on the tree.
     void bellman_tree_backup();
+
+    // TODO: Should make a function that returns a Tree of states with expected cost-to-gos.
+    //void forward_pass(const Eigen::VectorXd &x0, 
+    //        std::vector<Eigen::VectorXd> &states, 
+    //        std::vector<Eigen::VectorXd> &controls, 
+    //        std::vector<double> &costs, 
+    //        const TreeNodePtr &start_node = nullptr);
 
 private:
     int state_dim_ = 0;

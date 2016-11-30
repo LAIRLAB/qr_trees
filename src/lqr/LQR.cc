@@ -58,14 +58,14 @@ LQR::LQR(const std::vector<Eigen::MatrixXd> &As,
         )
     : As_(As), Bs_(Bs), Qs_(Qs), Rs_(Rs)
 {
-    IS_GREATER(As_.size(), 0);
+    IS_GREATER(static_cast<int>(As_.size()), 0);
     state_dim_ = As_[0].rows();
     control_dim_ = Bs_[0].cols();
 
     const int T = As_.size();
-    IS_EQUAL(Bs_.size(), T);
-    IS_EQUAL(Qs_.size(), T);
-    IS_EQUAL(Rs_.size(), T);
+    IS_EQUAL(static_cast<int>(Bs_.size()), T);
+    IS_EQUAL(static_cast<int>(Qs_.size()), T);
+    IS_EQUAL(static_cast<int>(Rs_.size()), T);
     for (int t = 0; t < T; ++t)
     {
         check_lqr_matrix_sizes(As_[t], Bs_[t], Qs_[t], Rs_[t]);
@@ -131,9 +131,9 @@ void LQR::forward_pass(const Eigen::VectorXd &x0,
         IS_EQUAL(xt.rows(), state_dim_);
         xt = As_[t] * xt + Bs_[t] * ut;
     }
-    IS_EQUAL(states.size(), T_);
-    IS_EQUAL(controls.size(), T_);
-    IS_EQUAL(costs.size(), T_);
+    IS_EQUAL(static_cast<int>(states.size()), T_);
+    IS_EQUAL(static_cast<int>(controls.size()), T_);
+    IS_EQUAL(static_cast<int>(costs.size()), T_);
 }
 
 } // namespace lqr

@@ -79,8 +79,8 @@ std::vector<ilqr::TreeNodePtr> construct_chain(const std::vector<Eigen::VectorXd
     std::vector<ilqr::TreeNodePtr> tree_nodes(T);
     auto plan_node = ilqr_tree.make_ilqr_node(xstars[0], ustars[0], dyn, cost, 1.0);
     ilqr::TreeNodePtr last_tree_node = ilqr_tree.add_root(plan_node);
-    IS_TRUE(last_tree_node);
     tree_nodes[0] = last_tree_node;
+    IS_TRUE(tree_nodes[0])
     for (int t = 1; t < T; ++t)
     {
         // Everything has probability 1.0 since we are making a chain.
@@ -89,9 +89,8 @@ std::vector<ilqr::TreeNodePtr> construct_chain(const std::vector<Eigen::VectorXd
         IS_EQUAL(new_nodes.size(), 1);
         last_tree_node = new_nodes[0];
         tree_nodes[t] = last_tree_node;
-        IS_TRUE(last_tree_node);
+        IS_TRUE(tree_nodes[t]);
     }
-    IS_TRUE(tree_nodes[0])
 
     return tree_nodes;
 }
@@ -159,7 +158,6 @@ void test_with_lqr_initialization(const int state_dim,
         linear_dyn, quad_cost, ilqr_tree);
     ilqr_tree.bellman_tree_backup();
     ilqr_tree.forward_tree_update(1.0);
-    IS_TRUE(ilqr_chain[0])
     get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
 
     // Recompute costs to check that the costs being returned are correct.
@@ -210,8 +208,6 @@ void test_with_lqr_initialization(const int state_dim,
             }));
 }
 
-/*
-
 // iLQR even initialized at different states and controls than the true LQR 
 // should converge on 1 iteration (perfect Newton step).
 void test_converge_to_lqr(const int state_dim, const int control_dim, const int T)
@@ -254,12 +250,12 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
         xt = linear_dyn(xt, ut);
     }
 
-    ilqr::iLQR ilqr(linear_dyn, quad_cost, ilqr_init_states, ilqr_init_controls);
-    // Should converge after one backwards-forwards pass.
-    ilqr.backwards_pass();
-    ilqr.forward_pass(ilqr_costs, ilqr_states, ilqr_controls, true);
-    ilqr.backwards_pass();
-    ilqr.forward_pass(ilqr_costs, ilqr_states, ilqr_controls, true);
+    ilqr::iLQRTree ilqr_tree(state_dim, control_dim);
+    std::vector<ilqr::TreeNodePtr> ilqr_chain = construct_chain(ilqr_init_states, ilqr_init_controls,
+        linear_dyn, quad_cost, ilqr_tree);
+    ilqr_tree.bellman_tree_backup();
+    ilqr_tree.forward_tree_update(1.0);
+    get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
 
     // Recompute costs to check that the costs being returned are correct.
     double ilqr_cost = 0;
@@ -289,8 +285,9 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
     // Confirm another backwards and forwards pass does not change the results.
     std::vector<Eigen::VectorXd> ilqr_states_2, ilqr_controls_2;
     std::vector<double> ilqr_costs_2;
-    ilqr.backwards_pass();
-    ilqr.forward_pass(ilqr_costs_2, ilqr_states_2, ilqr_controls_2, true);
+    ilqr_tree.bellman_tree_backup();
+    ilqr_tree.forward_tree_update(1.0);
+    get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states_2, ilqr_controls_2, ilqr_costs_2);
     const double ilqr_total_cost_2 = std::accumulate(ilqr_costs_2.begin(), ilqr_costs_2.end(), 0.0);
     IS_ALMOST_EQUAL(ilqr_total_cost_2, ilqr_total_cost, TIGHTER_TOL);
     IS_TRUE(std::equal(ilqr_costs.begin(), ilqr_costs.end(), 
@@ -307,14 +304,12 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
                 return math::is_equal(a, b, WEAKER_TOL);
             }));
 }
-*/
 
 int main()
 {
     // Should work with square and non-square dimensions. 
     // Should work with many timesteps.
     test_with_lqr_initialization(5, 5, 2);
-    /*
     test_with_lqr_initialization(5, 2, 2);
     test_with_lqr_initialization(5, 2, 8);
     test_with_lqr_initialization(5, 2, 150);
@@ -322,10 +317,7 @@ int main()
     test_with_lqr_initialization(1, 1, 2);
     // Should not work with only 1 timstep. 
     DOES_THROW(test_with_lqr_initialization(3, 2, 1));
-    */
 
-
-    /*
     test_converge_to_lqr(8,2,4);
     test_converge_to_lqr(5,5,8);
     test_converge_to_lqr(3,2,4);
@@ -334,7 +326,6 @@ int main()
     test_converge_to_lqr(1,1,8);
     // Should not work with only 1 timstep. 
     DOES_THROW(test_converge_to_lqr(3, 2, 1));
-    */
 
 }
 

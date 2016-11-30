@@ -15,7 +15,7 @@ namespace simulators
 namespace pendulum
 {
 
-ilqr::DynamicsFunc make_discrete_dynamics_func(const double length, const double damping_coeff);
+ilqr::DynamicsFunc make_discrete_dynamics_func(const double dt, const double length, const double damping_coeff);
 
 Eigen::VectorXd continuous_dynamics(const Eigen::VectorXd& state, const Eigen::VectorXd& control, 
                                     const double length, const double damping_coeff);

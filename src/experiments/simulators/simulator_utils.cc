@@ -49,7 +49,7 @@ Eigen::VectorXd step(const Eigen::VectorXd &state, const Eigen::VectorXd &contro
 
   for (int i = 0; i < num_steps; ++i) 
   {
-    result = rk4(integration_dt, result, control, dynamics);
+    result.noalias() = rk4(integration_dt, result, control, dynamics);
   }
 
   return result;

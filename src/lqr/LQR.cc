@@ -121,7 +121,7 @@ void LQR::forward_pass(const Eigen::VectorXd &x0,
         ut = Kt * xt;
         const Eigen::VectorXd cost_mat = (xt.transpose()*Qs_[t]*xt)
             + (ut.transpose()*Rs_[t]*ut);
-        IS_EQUAL(cost_mat.size(), 1)
+        IS_EQUAL(cost_mat.size(), 1);
         double cost = 0.5*cost_mat[0];
 
         states.push_back(xt); 

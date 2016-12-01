@@ -3,6 +3,9 @@ add_executable(test_tree test_tree.cc)
 add_executable(test_math test_math.cc)
 target_link_libraries(test_math utils)
 
+add_executable(test_discrete_filter test_discrete_filter.cc)
+target_link_libraries(test_discrete_filter simulators)
+
 add_executable(test_ilqr_taylor_expansions test_ilqr_taylor_expansions.cc)
 target_link_libraries(test_ilqr_taylor_expansions ilqr lqr utils)
 

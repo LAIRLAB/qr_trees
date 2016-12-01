@@ -126,18 +126,18 @@ void control_pendulum_as_chain(const int T, const double dt, const Eigen::Vector
     std::vector<ilqr::TreeNodePtr> ilqr_chain = construct_chain(ilqr_init_states, ilqr_init_controls,
         dynamics, quad_cost, ilqr_tree);
 
-    ilqr::iLQR ilqr(dynamics, quad_cost, ilqr_init_states, ilqr_init_controls);
+    //ilqr::iLQR ilqr(dynamics, quad_cost, ilqr_init_states, ilqr_init_controls);
     for (int i = 0; i < 5; ++i)
     {
         SUCCESS("i:" << i)
         std::vector<Eigen::VectorXd> ilqr_states, ilqr_controls;
         std::vector<double> ilqr_costs;
-        ilqr.backwards_pass();
-        ilqr.forward_pass(ilqr_costs, ilqr_states, ilqr_controls, true);
+        //ilqr.backwards_pass();
+        //ilqr.forward_pass(ilqr_costs, ilqr_states, ilqr_controls, true);
 
-        //ilqr_tree.bellman_tree_backup();
-        //ilqr_tree.forward_tree_update(1.0);
-        //get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
+        ilqr_tree.bellman_tree_backup();
+        ilqr_tree.forward_tree_update(1.0);
+        get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
 
         // Recompute costs to check that the costs being returned are correct.
         //for (int t = 0; t < T; ++t)

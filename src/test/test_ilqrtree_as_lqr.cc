@@ -137,7 +137,6 @@ void test_with_lqr_initialization(const int state_dim,
     const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-1);
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R);
 
-
     // Create a list of initial states for the iLQR. 
     Eigen::VectorXd x0 = Eigen::VectorXd::Random(state_dim);
     
@@ -217,11 +216,15 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
     // Define the dynamics.
     const Eigen::MatrixXd A = Eigen::MatrixXd::Random(state_dim, state_dim);
     const Eigen::MatrixXd B = Eigen::MatrixXd::Random(state_dim, control_dim);
+    //const Eigen::MatrixXd A = Eigen::MatrixXd::Identity(state_dim, state_dim);
+    //const Eigen::MatrixXd B = Eigen::MatrixXd::Identity(state_dim, control_dim);
     const ilqr::DynamicsFunc linear_dyn = create_linear_dynamics(A, B);
 
     // Define the cost.
     const Eigen::MatrixXd Q = make_random_psd(state_dim, 1e-11);
     const Eigen::MatrixXd R = make_random_psd(control_dim, 1e-3);
+    //const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(state_dim, state_dim);
+    //const Eigen::MatrixXd R = Eigen::MatrixXd::Identity(control_dim, control_dim);
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R);
 
 
@@ -266,8 +269,26 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
         const Eigen::VectorXd lqr_u = lqr_controls[t];
         const Eigen::VectorXd ilqr_x = ilqr_states[t];
         const Eigen::VectorXd ilqr_u = ilqr_controls[t];
+
+        /*
+        PRINT("t=" << t << ": ilqr_x " << ilqr_x.transpose());
+        WARN("   : lqr_x " << lqr_x.transpose());
+        WARN("   : ilqr_x_orig " << ilqr_init_states[t].transpose());
+        WARN("   : ilqr_u " << ilqr_u.transpose());
+        WARN("   : lqr_u " << lqr_u.transpose());
+
+        if (t < T-1)
+        {
+            auto xt1_lqr = linear_dyn(lqr_x, lqr_u);
+            auto xt1_ilqr = ilqr_chain[t]->item()->dynamics_func()(ilqr_x, ilqr_u);
+            WARN("   : ilqr_xt1 " << xt1_ilqr.transpose());
+            WARN("   : lqr_xt1 " << xt1_lqr.transpose());
+        }
+        */
+
         IS_TRUE(math::is_equal(lqr_x, ilqr_x, WEAKER_TOL));
         IS_TRUE(math::is_equal(lqr_u, ilqr_u, WEAKER_TOL));
+
 
         ilqr_cost += quad_cost(ilqr_x, ilqr_u);
         lqr_cost += quad_cost(lqr_x, lqr_u);
@@ -309,6 +330,7 @@ int main()
 {
     // Should work with square and non-square dimensions. 
     // Should work with many timesteps.
+    test_with_lqr_initialization(5, 2, 8);
     test_with_lqr_initialization(5, 5, 2);
     test_with_lqr_initialization(5, 2, 2);
     test_with_lqr_initialization(5, 2, 8);
@@ -318,7 +340,7 @@ int main()
     // Should not work with only 1 timstep. 
     DOES_THROW(test_with_lqr_initialization(3, 2, 1));
 
-    test_converge_to_lqr(8,2,4);
+    test_converge_to_lqr(8,2,7);
     test_converge_to_lqr(5,5,8);
     test_converge_to_lqr(3,2,4);
     test_converge_to_lqr(3,2,8);
@@ -326,6 +348,5 @@ int main()
     test_converge_to_lqr(1,1,8);
     // Should not work with only 1 timstep. 
     DOES_THROW(test_converge_to_lqr(3, 2, 1));
-
 }
 

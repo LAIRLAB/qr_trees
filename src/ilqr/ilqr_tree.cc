@@ -4,6 +4,7 @@
 
 #include <iterator>
 #include <numeric>
+#include <tuple>
 #include <unordered_map>
 
 namespace
@@ -86,49 +87,68 @@ TreeNodePtr iLQRTree::root()
 
 void iLQRTree::forward_tree_update(const double alpha)
 {
-    // Process from the end of the list, but start at the beginning.
-    std::list<std::pair<TreeNodePtr, Eigen::VectorXd>> to_process;
-    // First x linearization is just from the root, not from rolling out dynamics.
-    to_process.emplace_front(tree_.root(), tree_.root()->item()->x());
+    // Process from the end of the list, but start at the beginning. Each tuple is (parent_node_t, child_node_{t+1}, x_t).
+    std::list<std::tuple<TreeNodePtr, TreeNodePtr, Eigen::VectorXd>> to_process;
+    const Eigen::VectorXd x0 = tree_.root()->item()->x();
+    auto parent = tree_.root();
+    for (auto child : tree_.root()->children())
+    {
+        // First x linearization is just from the root, not from rolling out dynamics.
+        to_process.emplace_front(parent, child, x0);
+    }
     while (!to_process.empty())
     {
-        auto &process_pair = to_process.back();
+        auto &process_tuple = to_process.back();
         //TODO: Implement line search over this function for the forward pass.
-        Eigen::VectorXd xt1, ut;
-        const Eigen::VectorXd &xt = process_pair.second;
-        auto ilqr_node = process_pair.first->item();
+        const std::shared_ptr<iLQRNode> parent_ilqr_node = std::get<0>(process_tuple)->item();
+        std::shared_ptr<iLQRNode> child_ilqr_node = std::get<1>(process_tuple)->item();
+        const Eigen::VectorXd &xt = std::get<2>(process_tuple);
 
-        forward_node(ilqr_node, xt, alpha, true, ut, xt1); 
-        for (auto child : process_pair.first->children())
+        Eigen::VectorXd xt1, ut;
+        forward_node(parent_ilqr_node, child_ilqr_node, xt, alpha, true, ut, xt1); 
+
+
+        TreeNodePtr new_parent_node = std::get<1>(process_tuple);
+        if (new_parent_node->num_children() == 0)
         {
-            to_process.emplace_front(child, xt1);
+            // There are no dynamics really from this node on so we give zero control.
+            Eigen::VectorXd xt1_null, ut_null;
+            forward_node(child_ilqr_node, child_ilqr_node, xt1, alpha, true, ut_null, xt1_null); 
+        }
+        for (auto &child : new_parent_node->children())
+        {
+            to_process.emplace_front(new_parent_node, child, xt1);
         }
 
         to_process.pop_back();
     }
 }
 
-void iLQRTree::forward_node(std::shared_ptr<iLQRNode>& node, 
+void iLQRTree::forward_node(const std::shared_ptr<iLQRNode>& parent_t,
+                            std::shared_ptr<iLQRNode>& child_tp1, 
                             const Eigen::MatrixXd &xt, 
                             const double alpha, 
                             const bool update_expansion,
                             Eigen::VectorXd &ut,
                             Eigen::VectorXd &xt1)
 {
+    // Roll forward the dynamics stored in the child from xt. 
+    // The control policy is from the parent.
+    
     // Compute difference from where the node is at now during the forward pass
     // versus the linearization point from before.
-    const Eigen::VectorXd zt = (xt - node->x()); const Eigen::VectorXd vt =
-        (node->K()*zt) + node->k();
+    const Eigen::VectorXd zt = (xt - parent_t->x()); 
+    const Eigen::VectorXd vt = (parent_t->K()*zt) + parent_t->k();
 
     // Set the new linearization point at the new xt for the node.
-    ut = alpha*vt + node->u();
-
-    xt1 = node->dynamics_func()(xt, ut);
+    ut = alpha*vt + parent_t->u();
 
     if (update_expansion) 
     {
-        node->update_expansion(xt, ut); 
+        parent_t->update_expansion(xt, ut); 
     }
+
+    xt1 = child_tp1->dynamics_func()(xt, ut);
 }
 
 
@@ -160,14 +180,18 @@ void iLQRTree::control_and_value_for_leaves()
    const int first_depth = leaf_nodes.size() > 0 
                                ? leaf_nodes.front()->depth() 
                                : -1;
-
+    auto identity_dynamics = [](const Eigen::VectorXd &x, const Eigen::VectorXd &u) { return static_cast<Eigen::VectorXd>(x); };
+    auto zero_cost = [](const Eigen::VectorXd &x, const Eigen::VectorXd &u) { return 0.0; };
+   std::shared_ptr<iLQRNode> first_ilqr_node = leaf_nodes.front()->item();
+   const std::shared_ptr<ilqr::iLQRNode> zero_value_node 
+       = std::make_shared<ilqr::iLQRNode>(first_ilqr_node->x(),  first_ilqr_node->u(), identity_dynamics, zero_cost, 1.0);
    for (auto &leaf: leaf_nodes)
    {
        IS_EQUAL(leaf->depth(), first_depth);
        std::shared_ptr<iLQRNode> node = leaf->item();
        // Compute the leaf node's control policy K, k using a Zero Value matrix for 
        // the future.
-       node->bellman_backup(ZERO_VALUE_);
+       node->bellman_backup({zero_value_node});
    }
 }
 
@@ -197,17 +221,18 @@ std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> 
        // Compute the weighted \tilde{J}_{t+1} = \sum_k p_k J_{T+1}^{(k)} matrix
        // by computing the probability-weighted average 
        QuadraticValue Jtilde = ZERO_VALUE_;
-       auto &children = parent_children_pair.second;
-       for (auto &child : children)
-       {
-           const std::shared_ptr<iLQRNode> &node = child->item();
-           add_weighted_value(node->probability(), node->value(), Jtilde);
-       }
+       std::list<TreeNodePtr> &children = parent_children_pair.second;
+       std::vector<std::shared_ptr<ilqr::iLQRNode>> child_ilqr_nodes(children.size());
+       std::transform(children.begin(), children.end(), child_ilqr_nodes.begin(), 
+               [](const TreeNodePtr &node)
+               {
+                   return node->item();
+               });
 
        std::shared_ptr<iLQRNode> parent_node = parent_children_pair.first->item();
        // Compute the parent node's control policy and value function from the 
        // linearly weighted value functions of the child nodes.
-       parent_node->bellman_backup(Jtilde);
+       parent_node->bellman_backup(child_ilqr_nodes);
        parents.push_back(parent_children_pair.first);
    }
 

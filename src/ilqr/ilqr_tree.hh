@@ -78,13 +78,14 @@ private:
     const QuadraticValue ZERO_VALUE_; 
 
     // The alpha is the step size to use in the control application.
-    void forward_node(std::shared_ptr<iLQRNode>& node, 
-                                 const Eigen::MatrixXd &xt, 
-                                 const double alpha,
-                                 const bool update_expansion,
-                                 Eigen::VectorXd &ut,
-                                 Eigen::VectorXd &xt1
-                                 );
+    void forward_node(const std::shared_ptr<iLQRNode>& parent_t,
+                      std::shared_ptr<iLQRNode>& child_tp1, 
+                      const Eigen::MatrixXd &xt,
+                      const double alpha,
+                      const bool update_expansion,
+                      Eigen::VectorXd &ut,
+                      Eigen::VectorXd &xt1
+                      );
 
     // Special case for just the leaves of the tree. We can compute this by
     // giving the leaves synthetic children with $V_{T+1} = 0$.

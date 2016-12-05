@@ -9,6 +9,7 @@
 #include <Eigen/Dense>
 
 #include <functional>
+#include <memory>
 #include <ostream>
 
 namespace ilqr 
@@ -36,7 +37,8 @@ public:
 
     // Compute the control policy and quadratic value of the node given the next
     // timestep value. The policy and value are set directly in the node.
-    void bellman_backup(const QuadraticValue& Jt1);
+    //void bellman_backup(const QuadraticValue& Jt1);
+    void bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &children);
 
     // Get and set the probability
     double probability() const { return probability_; }
@@ -46,6 +48,8 @@ public:
     CostFunc& cost_func() { return cost_func_; }
     const DynamicsFunc& dynamics_func() const { return dynamics_func_; }
     const CostFunc& cost_func() const { return cost_func_; }
+
+    const TaylorExpansion& expansion() const { return expansion_; }
 
     // Current Taylor expansion points x and u.
     Eigen::VectorXd& x() { return expansion_.x; }

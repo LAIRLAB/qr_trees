@@ -66,6 +66,7 @@ public:
     //        std::vector<Eigen::VectorXd> &controls, 
     //        std::vector<double> &costs, 
     //        const TreeNodePtr &start_node = nullptr);
+    void compute_control(const std::shared_ptr<iLQRNode>& parent_t,
 
 private:
     int state_dim_ = 0;

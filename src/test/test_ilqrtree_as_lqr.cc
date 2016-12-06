@@ -168,6 +168,10 @@ void test_with_lqr_initialization(const int state_dim,
         const Eigen::VectorXd lqr_u = lqr_controls[t];
         const Eigen::VectorXd ilqr_x = ilqr_states[t];
         const Eigen::VectorXd ilqr_u = ilqr_controls[t];
+        //PRINT("t=" << t << ": ilqr_x " << ilqr_x.transpose());
+        //WARN("   : lqr_x " << lqr_x.transpose());
+        //WARN("   : ilqr_u " << ilqr_u.transpose());
+        //WARN("   : lqr_u " << lqr_u.transpose());
 
         IS_TRUE(math::is_equal(lqr_x, ilqr_x, TOL));
         IS_TRUE(math::is_equal(lqr_u, ilqr_u, TOL));

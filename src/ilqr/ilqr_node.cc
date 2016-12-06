@@ -52,17 +52,10 @@ iLQRNode::iLQRNode(const Eigen::VectorXd &x_star,
                    const double probability) :
     iLQRNode(x_star.size(), u_star.size(), dynamics_func, cost_func, probability)
 {
+    x_ = x_star;
+    u_ = u_star;
     orig_xstar_ = x_star;
     orig_ustar_ = u_star;
-    update_expansion(x_star, u_star);
-}
-
-void iLQRNode::update_expansion(const Eigen::VectorXd &x, const Eigen::VectorXd &u)
-{
-    expansion_.x = x;
-    expansion_.u = u;
-    ilqr::update_dynamics(dynamics_func_, expansion_);
-    ilqr::update_cost(cost_func_, expansion_);
 }
 
 void iLQRNode::bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &children)
@@ -78,12 +71,16 @@ void iLQRNode::bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &chil
     Eigen::VectorXd weighted_kt_term = Eigen::VectorXd::Zero(control_dim);
 
     const size_t num_children = children.size();
+
+    std::vector<ilqr::Dynamics> dynamics_expansions(num_children);
     for (size_t i = 0; i < num_children; ++i)
     {
         const auto &child = children[i];
+
         // Dynamics come from child node.
-        const Eigen::MatrixXd &A = child->expansion().dynamics.A; 
-        const Eigen::MatrixXd &B = child->expansion().dynamics.B;
+        dynamics_expansions[i] = ilqr::linearize_dynamics(child->dynamics_func(), x(), u());
+        const Eigen::MatrixXd &A = dynamics_expansions[i].A; 
+        const Eigen::MatrixXd &B = dynamics_expansions[i].B;
         const Eigen::MatrixXd &Vt1 = child->value().V();
         const Eigen::MatrixXd &Gt1 = child->value().G();
         const double p = child->probability();
@@ -93,13 +90,15 @@ void iLQRNode::bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &chil
 
     }
 
+    const ilqr::Cost cost_expansion = ilqr::quadraticize_cost(cost_func(), x(), u());
+
     // Cost terms come from parent (this) node.
-    const Eigen::MatrixXd &Q = expansion_.cost.Q;        
-    const Eigen::MatrixXd &P = expansion_.cost.P;
-    const Eigen::MatrixXd &R = expansion_.cost.R;
-    const Eigen::VectorXd &g_u = expansion_.cost.g_u;
-    const Eigen::VectorXd &g_x = expansion_.cost.g_x;
-    const double &c= expansion_.cost.c;
+    const Eigen::MatrixXd &Q = cost_expansion.Q;
+    const Eigen::MatrixXd &P = cost_expansion.P;
+    const Eigen::MatrixXd &R = cost_expansion.R;
+    const Eigen::VectorXd &g_u = cost_expansion.g_u;
+    const Eigen::VectorXd &g_x = cost_expansion.g_x;
+    const double &c= cost_expansion.c;
 
     const Eigen::MatrixXd inv_term = -1.0*(R + weighted_inv_term).inverse();
     const Eigen::MatrixXd Kt = inv_term * (P.transpose() + weighted_Kt_term); 
@@ -111,8 +110,9 @@ void iLQRNode::bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &chil
     {
         QuadraticValue Jt1(state_dim);
         const auto &child = children[i];
-        const Eigen::MatrixXd &A = child->expansion().dynamics.A; 
-        const Eigen::MatrixXd &B = child->expansion().dynamics.B;
+        // Dynamics come from child node.
+        const Eigen::MatrixXd &A = dynamics_expansions[i].A; 
+        const Eigen::MatrixXd &B = dynamics_expansions[i].B;
         const Eigen::MatrixXd tmp = (A + B*Kt);
 
         const Eigen::MatrixXd &Vt1 = child->value().V();
@@ -140,11 +140,16 @@ void iLQRNode::bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &chil
 
 Eigen::VectorXd iLQRNode::compute_control(const Eigen::VectorXd &xt) const
 {
+    return compute_control(xt, 1.0);
+}
+
+Eigen::VectorXd iLQRNode::compute_control(const Eigen::VectorXd &xt, const double alpha) const
+{
     const Eigen::VectorXd zt = (xt - x()); 
     const Eigen::VectorXd vt = (K()*zt) + k();
 
     // Set the new linearization point at the new xt for the node.
-    const Eigen::VectorXd ut = vt + u();
+    const Eigen::VectorXd ut = alpha*vt + u();
     return ut;
 }
 

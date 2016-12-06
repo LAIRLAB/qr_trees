@@ -32,16 +32,16 @@ public:
              const CostFunc &cost_func,
              const double probablity);
 
-    // Updates the Taylor expansion at x and u including storing the 
-    // new linearization point at x and u.
-    void update_expansion(const Eigen::VectorXd &x, const Eigen::VectorXd &u);
-
     // Compute the control policy and quadratic value of the node given the next
     // timestep value. The policy and value are set directly in the node.
     //void bellman_backup(const QuadraticValue& Jt1);
     void bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &children);
 
+    // Computes a feedback control from state xt.
     Eigen::VectorXd compute_control(const Eigen::VectorXd &xt) const;
+    // Computes a feedback control from state xt except moving only "alpha" step-size away from the
+    // expansion point u().
+    Eigen::VectorXd compute_control(const Eigen::VectorXd &xt, const double alpha) const;
 
     // Get and set the probability
     double probability() const { return probability_; }
@@ -52,13 +52,11 @@ public:
     const DynamicsFunc& dynamics_func() const { return dynamics_func_; }
     const CostFunc& cost_func() const { return cost_func_; }
 
-    const TaylorExpansion& expansion() const { return expansion_; }
-
     // Current Taylor expansion points x and u.
-    Eigen::VectorXd& x() { return expansion_.x; }
-    Eigen::VectorXd& u() { return expansion_.u; }
-    const Eigen::VectorXd& x() const { return expansion_.x; }
-    const Eigen::VectorXd& u() const { return expansion_.u; }
+    Eigen::VectorXd& x() { return x_; }
+    Eigen::VectorXd& u() { return u_; }
+    const Eigen::VectorXd& x() const { return x_; }
+    const Eigen::VectorXd& u() const { return u_; }
 
     // Original Taylor expansion points x and u.
     Eigen::VectorXd& orig_xstar() { return orig_xstar_; }
@@ -79,9 +77,10 @@ private:
     DynamicsFunc dynamics_func_;
     CostFunc cost_func_;
 
-    // Contains the linearization point x,u as well as the 
-    // linearized dynamics and cost models.
-    TaylorExpansion expansion_;
+    // Set point used for linearization of THIS node's cost and
+    // all CHILD node dynamics.
+    Eigen::VectorXd x_;
+    Eigen::VectorXd u_;
 
     // Probability of transitioning to this node from the parent.
     double probability_;

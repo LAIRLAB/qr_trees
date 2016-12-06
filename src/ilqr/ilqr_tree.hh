@@ -66,7 +66,6 @@ public:
     //        std::vector<Eigen::VectorXd> &controls, 
     //        std::vector<double> &costs, 
     //        const TreeNodePtr &start_node = nullptr);
-    void compute_control(const std::shared_ptr<iLQRNode>& parent_t,
 
 private:
     int state_dim_ = 0;
@@ -77,16 +76,6 @@ private:
     // Zeros matrix of size [state_dim +1] x [state_dim +1]. Used as
     // initialization for the zeros matrix.
     const QuadraticValue ZERO_VALUE_; 
-
-    // The alpha is the step size to use in the control application.
-    void forward_node(const std::shared_ptr<iLQRNode>& parent_t,
-                      std::shared_ptr<iLQRNode>& child_tp1, 
-                      const Eigen::MatrixXd &xt,
-                      const double alpha,
-                      const bool update_expansion,
-                      Eigen::VectorXd &ut,
-                      Eigen::VectorXd &xt1
-                      );
 
     // Special case for just the leaves of the tree. We can compute this by
     // giving the leaves synthetic children with $V_{T+1} = 0$.

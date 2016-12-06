@@ -70,12 +70,14 @@ std::vector<TreeNodePtr> iLQRTree::add_nodes(
     // Throw error if sum is not close to 1.0
     IS_ALMOST_EQUAL(probability_sum, 1.0, EPS); 
 
+    const std::shared_ptr<iLQRNode> parent_ilqr_node = parent->item();
     // Create tree nodes from the plan nodes and add them to the tree.
     std::vector<TreeNodePtr> children;
     children.reserve(ilqr_nodes.size());
     for (const auto &ilqr_node : ilqr_nodes)
     {
-        children.emplace_back(tree_.add_child(parent, ilqr_node));
+        TreeNodePtr child_node = tree_.add_child(parent, ilqr_node);
+        children.emplace_back(child_node);
     }
     return children;
 }
@@ -87,70 +89,32 @@ TreeNodePtr iLQRTree::root()
 
 void iLQRTree::forward_tree_update(const double alpha)
 {
-    // Process from the end of the list, but start at the beginning. Each tuple is (parent_node_t, child_node_{t+1}, x_t).
-    std::list<std::tuple<TreeNodePtr, TreeNodePtr, Eigen::VectorXd>> to_process;
+    // Process from the end of the list, but start at the beginning. 
+    // Each tuple is (parent_node_t, x_t).
+    std::list<std::tuple<TreeNodePtr, Eigen::VectorXd>> to_process;
     const Eigen::VectorXd x0 = tree_.root()->item()->x();
-    auto parent = tree_.root();
-    for (auto child : tree_.root()->children())
-    {
-        // First x linearization is just from the root, not from rolling out dynamics.
-        to_process.emplace_front(parent, child, x0);
-    }
+    to_process.emplace_front(tree_.root(), x0);
     while (!to_process.empty())
     {
         auto &process_tuple = to_process.back();
         //TODO: Implement line search over this function for the forward pass.
-        const std::shared_ptr<iLQRNode> parent_ilqr_node = std::get<0>(process_tuple)->item();
-        std::shared_ptr<iLQRNode> child_ilqr_node = std::get<1>(process_tuple)->item();
-        const Eigen::VectorXd &xt = std::get<2>(process_tuple);
+        const TreeNodePtr& parent = std::get<0>(process_tuple);
+        const std::shared_ptr<iLQRNode> parent_ilqr_node = parent->item();
+        const Eigen::VectorXd &xt = std::get<1>(process_tuple);
 
-        Eigen::VectorXd xt1, ut;
-        forward_node(parent_ilqr_node, child_ilqr_node, xt, alpha, true, ut, xt1); 
-
-
-        TreeNodePtr new_parent_node = std::get<1>(process_tuple);
-        if (new_parent_node->num_children() == 0)
+        const Eigen::VectorXd ut = parent_ilqr_node->compute_control(xt, alpha);
+        parent_ilqr_node->x() = xt;
+        parent_ilqr_node->u() = ut;
+        for (auto child : parent->children()) 
         {
-            // There are no dynamics really from this node on so we give zero control.
-            Eigen::VectorXd xt1_null, ut_null;
-            forward_node(child_ilqr_node, child_ilqr_node, xt1, alpha, true, ut_null, xt1_null); 
-        }
-        for (auto &child : new_parent_node->children())
-        {
-            to_process.emplace_front(new_parent_node, child, xt1);
+            std::shared_ptr<iLQRNode> child_ilqr_node = child->item();
+            const Eigen::VectorXd xt1 = child_ilqr_node->dynamics_func()(xt, ut);
+            to_process.emplace_front(child, xt1);
         }
 
         to_process.pop_back();
     }
 }
-
-void iLQRTree::forward_node(const std::shared_ptr<iLQRNode>& parent_t,
-                            std::shared_ptr<iLQRNode>& child_tp1, 
-                            const Eigen::MatrixXd &xt, 
-                            const double alpha, 
-                            const bool update_expansion,
-                            Eigen::VectorXd &ut,
-                            Eigen::VectorXd &xt1)
-{
-    // Roll forward the dynamics stored in the child from xt. 
-    // The control policy is from the parent.
-    
-    // Compute difference from where the node is at now during the forward pass
-    // versus the linearization point from before.
-    const Eigen::VectorXd zt = (xt - parent_t->x()); 
-    const Eigen::VectorXd vt = (parent_t->K()*zt) + parent_t->k();
-
-    // Set the new linearization point at the new xt for the node.
-    ut = alpha*vt + parent_t->u();
-
-    if (update_expansion) 
-    {
-        parent_t->update_expansion(xt, ut); 
-    }
-
-    xt1 = child_tp1->dynamics_func()(xt, ut);
-}
-
 
 
 void iLQRTree::bellman_tree_backup()

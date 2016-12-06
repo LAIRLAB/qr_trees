@@ -69,8 +69,17 @@ void compute_backup(const TaylorExpansion &expansion, const QuadraticValue &Jt1,
 
 void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansion)
 {
-    const int state_dim = expansion.x.size();
-    const int control_dim = expansion.u.size();
+    expansion.dynamics = linearize_dynamics(dynamics_func, expansion.x, expansion.u);
+}
+
+ilqr::Dynamics linearize_dynamics(const DynamicsFunc &dynamics_func, 
+                        const Eigen::VectorXd &x, 
+                        const Eigen::VectorXd &u
+                       )
+{
+
+    const int state_dim = x.size();
+    const int control_dim = u.size();
     IS_GREATER(state_dim, 0);
     IS_GREATER(control_dim, 0);
 
@@ -80,22 +89,32 @@ void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansi
     };
 
     Eigen::VectorXd xu(state_dim + control_dim);
-    xu.topRows(state_dim) = expansion.x;
-    xu.bottomRows(control_dim) = expansion.u;
+    xu.topRows(state_dim) = x;
+    xu.bottomRows(control_dim) = u;
     const auto J = math::jacobian(dynamics_wrapper, xu);
 
-    Eigen::MatrixXd &A = expansion.dynamics.A;
-    Eigen::MatrixXd &B = expansion.dynamics.B;
+    ilqr::Dynamics dynamics;
+    Eigen::MatrixXd &A = dynamics.A;
+    Eigen::MatrixXd &B = dynamics.B;
     
     A =  J.leftCols(state_dim);
     B = J.rightCols(control_dim);
+
+    return dynamics;
 
 }
 
 void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
 {
-    const int state_dim = expansion.x.size();
-    const int control_dim = expansion.u.size();
+    expansion.cost = quadraticize_cost(cost_func, expansion.x, expansion.u);
+}
+
+ilqr::Cost quadraticize_cost(const CostFunc &cost_func, 
+                        const Eigen::VectorXd &x, 
+                        const Eigen::VectorXd &u)
+{
+    const int state_dim = x.size();
+    const int control_dim = u.size();
     IS_GREATER(state_dim, 0);
     IS_GREATER(control_dim, 0);
     auto cost_wrapper = [state_dim, control_dim, &cost_func](const Eigen::VectorXd &pt) -> double
@@ -103,16 +122,17 @@ void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
         return cost_func(pt.topRows(state_dim), pt.bottomRows(control_dim));
     };
 
-    Eigen::MatrixXd &Q = expansion.cost.Q;
-    Eigen::MatrixXd &R = expansion.cost.R;
-    Eigen::MatrixXd &P = expansion.cost.P;
-    Eigen::VectorXd &g_x = expansion.cost.g_x;
-    Eigen::VectorXd &g_u = expansion.cost.g_u;
-    double &c= expansion.cost.c;
+    ilqr::Cost cost;
+    Eigen::MatrixXd &Q = cost.Q;
+    Eigen::MatrixXd &R = cost.R;
+    Eigen::MatrixXd &P = cost.P;
+    Eigen::VectorXd &g_x = cost.g_x;
+    Eigen::VectorXd &g_u = cost.g_u;
+    double &c= cost.c;
     
     Eigen::VectorXd xu(state_dim + control_dim);
-    xu.topRows(state_dim) = expansion.x;
-    xu.bottomRows(control_dim) = expansion.u;
+    xu.topRows(state_dim) = x;
+    xu.bottomRows(control_dim) = u;
 
     // Zero out components that are less than this threshold. We do this since
     // finite differencing has numerical issues.
@@ -137,6 +157,8 @@ void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
     // Control terms.
     R = math::project_to_psd(R, 1e-8);
     math::check_psd(R, 1e-9);
+
+    return cost;
 }
 
 } // namespace ilqr

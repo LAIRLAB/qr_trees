@@ -81,11 +81,21 @@ private:
     double W_;
 };
 
+// Compute a standard iLQR backup.
 void compute_backup(const TaylorExpansion &expansion, const QuadraticValue &Jt1,
         Eigen::MatrixXd &Kt, Eigen::VectorXd &kt, QuadraticValue &Jt);
         
 void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansion);
 
+ilqr::Dynamics linearize_dynamics(const DynamicsFunc &dynamics_func, 
+                        const Eigen::VectorXd &x, 
+                        const Eigen::VectorXd &u);
+
 void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion);
 
+ilqr::Cost quadraticize_cost(const CostFunc &cost_func, 
+                        const Eigen::VectorXd &x, 
+                        const Eigen::VectorXd &u);
+
 } // namespace ilqr
+

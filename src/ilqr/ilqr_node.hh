@@ -41,6 +41,8 @@ public:
     //void bellman_backup(const QuadraticValue& Jt1);
     void bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &children);
 
+    Eigen::VectorXd compute_control(const Eigen::VectorXd &xt) const;
+
     // Get and set the probability
     double probability() const { return probability_; }
     void set_probability(double p) { probability_ = p; }

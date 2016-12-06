@@ -14,7 +14,7 @@ namespace
 {
 
 // Tolerance for checking double/floating point equality.
-constexpr double WEAKER_TOL = 1e-3;
+constexpr double WEAKER_TOL = 5e-3;
 constexpr double TOL = 1e-5;
 constexpr double TIGHTER_TOL = 1e-7;
 
@@ -270,21 +270,21 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
         const Eigen::VectorXd ilqr_x = ilqr_states[t];
         const Eigen::VectorXd ilqr_u = ilqr_controls[t];
 
-        /*
-        PRINT("t=" << t << ": ilqr_x " << ilqr_x.transpose());
-        WARN("   : lqr_x " << lqr_x.transpose());
-        WARN("   : ilqr_x_orig " << ilqr_init_states[t].transpose());
-        WARN("   : ilqr_u " << ilqr_u.transpose());
-        WARN("   : lqr_u " << lqr_u.transpose());
+        
+        //PRINT("t=" << t << ": ilqr_x " << ilqr_x.transpose());
+        //WARN("   : lqr_x " << lqr_x.transpose());
+        //WARN("   : ilqr_x_orig " << ilqr_init_states[t].transpose());
+        //WARN("   : ilqr_u " << ilqr_u.transpose());
+        //WARN("   : lqr_u " << lqr_u.transpose());
 
-        if (t < T-1)
-        {
-            auto xt1_lqr = linear_dyn(lqr_x, lqr_u);
-            auto xt1_ilqr = ilqr_chain[t]->item()->dynamics_func()(ilqr_x, ilqr_u);
-            WARN("   : ilqr_xt1 " << xt1_ilqr.transpose());
-            WARN("   : lqr_xt1 " << xt1_lqr.transpose());
-        }
-        */
+        //if (t < T-1)
+        //{
+        //    auto xt1_lqr = linear_dyn(lqr_x, lqr_u);
+        //    auto xt1_ilqr = ilqr_chain[t]->item()->dynamics_func()(ilqr_x, ilqr_u);
+        //    WARN("   : ilqr_xt1 " << xt1_ilqr.transpose());
+        //    WARN("   : lqr_xt1 " << xt1_lqr.transpose());
+        //}
+        
 
         IS_TRUE(math::is_equal(lqr_x, ilqr_x, WEAKER_TOL));
         IS_TRUE(math::is_equal(lqr_u, ilqr_u, WEAKER_TOL));

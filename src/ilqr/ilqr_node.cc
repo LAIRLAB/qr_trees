@@ -136,8 +136,18 @@ void iLQRNode::bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &chil
     K_ = Kt;
     k_ = kt;
 
-    //ilqr::compute_backup(expansion_, children[0]->value(), K_, k_, J_);
 }
+
+Eigen::VectorXd iLQRNode::compute_control(const Eigen::VectorXd &xt) const
+{
+    const Eigen::VectorXd zt = (xt - x()); 
+    const Eigen::VectorXd vt = (K()*zt) + k();
+
+    // Set the new linearization point at the new xt for the node.
+    const Eigen::VectorXd ut = vt + u();
+    return ut;
+}
+
 
 std::ostream& operator<<(std::ostream& os, const iLQRNode& node)
 {

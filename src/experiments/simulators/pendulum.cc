@@ -18,7 +18,7 @@ ilqr::DynamicsFunc make_discrete_dynamics_func(const double dt, const double len
 
     return [dt, params_bound_dyn](const Eigen::VectorXd& state, const Eigen::VectorXd& control)
         {
-            return static_cast<Eigen::VectorXd>(simulators::step(state, control, dt, params_bound_dyn));
+            return static_cast<Eigen::VectorXd>(simulators::step(state, control, dt, params_bound_dyn, 0.1, 2));
         };
 }
 

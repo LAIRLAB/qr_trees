@@ -4,9 +4,6 @@
 namespace 
 {
 
-  constexpr double INTEGRATION_FREQUENCY = 5;
-  constexpr double MIN_INTEGRATION_DT = 1e-2;
-
   // This cannot be changed
   constexpr double RK4_INTEGRATION_CONSTANT = 1.0/6.0;
   // 4th order Runge-Kutta integration of an ODE given by dynamics.
@@ -34,13 +31,15 @@ namespace simulators
 {
 
 Eigen::VectorXd step(const Eigen::VectorXd &state, const Eigen::VectorXd &control, 
-                     const double dt, const ilqr::DynamicsFunc &dynamics)
+                     const double dt, const ilqr::DynamicsFunc &dynamics, 
+                     const double min_integration_dt,
+                     const double integration_frequency)
 {
   // integration dt to be considered based on passed in dt
-  double integration_dt = dt/INTEGRATION_FREQUENCY; 
+  double integration_dt = dt/integration_frequency; 
   int num_steps = static_cast<int>(std::ceil(dt/integration_dt));
 
-  if (integration_dt > MIN_INTEGRATION_DT) {
+  if (integration_dt > min_integration_dt) {
       // Since we are above the min integration point, compute how many integration steps we should 
       // take in order to be at least at the min dt or lower dt
       num_steps = static_cast<int>(std::ceil(dt/MIN_INTEGRATION_DT));

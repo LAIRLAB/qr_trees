@@ -77,5 +77,24 @@ double DiscreteFilter<T>::Z()
     return z;
 }
 
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const DiscreteFilter<T> &filter)
+{  
+    os << "{";
+    int i = 0;
+    for (const auto& pair : filter.beliefs())
+    {
+        if (i > 0)
+        {
+            os << ", ";
+        }
+        os << pair.first << ": " << pair.second;
+        ++i;
+    }
+    os << "}";
+    return os;  
+}
+
 }// namespace filters
+
 

@@ -48,6 +48,9 @@ private:
     std::unordered_map<T, double> beliefs_;
 };
 
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const DiscreteFilter<T> &filter); 
+
 
 }// namespace filters
 

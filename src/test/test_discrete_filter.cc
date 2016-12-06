@@ -20,29 +20,10 @@ namespace
     
     constexpr int T = 20;
 
-    std::ostream& operator<<(std::ostream& os, const  std::unordered_map<double, double>& beliefs)  
-    {  
-        os << "{";
-        int i = 0;
-        for (const auto& pair : beliefs)
-        {
-            if (i > 0)
-            {
-                os << ", ";
-            }
-            os << pair.first << ": " << pair.second;
-            ++i;
-        }
-        os << "}";
-        return os;  
-    }
-
     double weighted_squared_norm(const Eigen::VectorXd &x1, const Eigen::VectorXd &x2)
     {
         return 100.0*(x1-x2).squaredNorm();
     }
-
-
 
 }
 
@@ -82,8 +63,7 @@ int main()
     SUCCESS("True Damping: " << true_damping_coeff);
     for (int t = 0; t < T; ++t)
     {
-        const auto beliefs = filter.beliefs();
-        PRINT(" t=" << t << ": " <<  beliefs);
+        PRINT(" t=" << t << ": " <<  filter);
 
         ut = 10.*Eigen::VectorXd::Random(CONTROL_DIM);
         Eigen::VectorXd xt1 = true_dynamics(xt, ut);

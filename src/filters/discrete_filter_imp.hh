@@ -2,8 +2,9 @@
 
 #include <utils/debug_utils.hh>
 
-#include <numeric>
 #include <cmath>
+#include <numeric>
+#include <vector>
 
 namespace
 {

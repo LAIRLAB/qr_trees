@@ -11,6 +11,7 @@
 #include <functional>
 #include <memory>
 #include <ostream>
+#include <vector>
 
 namespace ilqr 
 {

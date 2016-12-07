@@ -1,5 +1,5 @@
 
-#include <ilqr/ilqr_helpers.hh>
+#include <ilqr/ilqr_taylor_expansions.hh>
 
 #include <utils/debug_utils.hh>
 #include <utils/math_utils.hh>
@@ -12,64 +12,6 @@ QuadraticValue::QuadraticValue(const int state_dim) :
     G_(Eigen::MatrixXd::Zero(1, state_dim)),
     W_(0)
 {
-}
-
-void compute_backup(const TaylorExpansion &expansion, const QuadraticValue &Jt1,
-        Eigen::MatrixXd &Kt, Eigen::VectorXd &kt, QuadraticValue &Jt)
-{
-    const Eigen::MatrixXd &Vt1 = Jt1.V();
-    const Eigen::MatrixXd &Gt1 = Jt1.G();
-    const double Wt1 = Jt1.W();
-    Eigen::MatrixXd &Vt = Jt.V();
-    Eigen::MatrixXd &Gt = Jt.G();
-    double &Wt = Jt.W();
-
-    // [dim(x)] x [dim(x)]
-    const Eigen::MatrixXd &A = expansion.dynamics.A; 
-    // [dim(x)] x [dim(u)]
-    const Eigen::MatrixXd &B = expansion.dynamics.B;
-
-    // [dim(x)] x [dim(x)]
-    const Eigen::MatrixXd &Q = expansion.cost.Q;        
-    // [dim(x)] x [dim(u)]
-    const Eigen::MatrixXd &P = expansion.cost.P;
-    // [dim(u)] x [dim(u)]
-    const Eigen::MatrixXd &R = expansion.cost.R;
-    // [dim(u)] x [1]
-    const Eigen::VectorXd &g_u = expansion.cost.g_u;
-    const Eigen::VectorXd &g_x = expansion.cost.g_x;
-    const double &c= expansion.cost.c;
-
-    const int state_dim = A.rows();
-    IS_GREATER(state_dim, 0);
-    IS_EQUAL(state_dim, expansion.x.size());
-    const int control_dim = B.cols();
-    IS_GREATER(control_dim, 0);
-    IS_EQUAL(control_dim, expansion.u.size());
-
-    const Eigen::MatrixXd inv_term = -1.0*(R + B.transpose()*Vt1*B).inverse();
-    Kt = inv_term * (P.transpose() + B.transpose()*Vt1*A); 
-    kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
-
-    IS_EQUAL(Kt.rows(), control_dim);
-    IS_EQUAL(Kt.cols(), state_dim);
-    IS_EQUAL(kt.size(), control_dim);
-
-    const Eigen::MatrixXd tmp = (A + B*Kt);
-    Vt = Q + 2.0*(P*Kt) + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
-
-    Gt = kt.transpose()*P.transpose() + kt.transpose()*R*Kt + g_x.transpose() 
-        + g_u.transpose()*Kt + kt.transpose()*B.transpose()*Vt1*tmp + Gt1*tmp;
-
-    const Eigen::VectorXd Wt_mat = 0.5*(kt.transpose()*R*kt) 
-        + g_u.transpose()*kt + Gt1*B*kt 
-        + 0.5*(kt.transpose()*B.transpose()*Vt1*B*kt);
-    Wt = Wt_mat(0) + c + Wt1;
-}
-
-void update_dynamics(const DynamicsFunc &dynamics_func, TaylorExpansion &expansion)
-{
-    expansion.dynamics = linearize_dynamics(dynamics_func, expansion.x, expansion.u);
 }
 
 ilqr::Dynamics linearize_dynamics(const DynamicsFunc &dynamics_func, 
@@ -102,11 +44,6 @@ ilqr::Dynamics linearize_dynamics(const DynamicsFunc &dynamics_func,
 
     return dynamics;
 
-}
-
-void update_cost(const CostFunc &cost_func, TaylorExpansion &expansion)
-{
-    expansion.cost = quadraticize_cost(cost_func, expansion.x, expansion.u);
 }
 
 ilqr::Cost quadraticize_cost(const CostFunc &cost_func, 

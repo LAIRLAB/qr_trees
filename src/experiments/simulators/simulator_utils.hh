@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <ilqr/ilqr_helpers.hh> // Definition of dynamics function.
+#include <ilqr/ilqr_taylor_expansions.hh> // Definition of dynamics function.
 
 #include <Eigen/Dense>
 

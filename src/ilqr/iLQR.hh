@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include <ilqr/ilqr_helpers.hh>
+#include <ilqr/ilqr_taylor_expansions.hh>
 
 #include <Eigen/Dense>
 
+#include <tuple>
 #include <vector>
 
 namespace ilqr
@@ -16,6 +17,8 @@ namespace ilqr
 class iLQR
 {
 public:
+    // Stores linearization points x, u and the Taylor expansions of the dynamics and cost.
+    using TaylorExpansion = std::tuple<Eigen::VectorXd, Eigen::VectorXd, ilqr::Dynamics, ilqr::Cost>;
 
     iLQR(const DynamicsFunc &dynamics, const CostFunc &cost, 
             const std::vector<Eigen::VectorXd> &Xs, 

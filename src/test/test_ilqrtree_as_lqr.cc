@@ -2,7 +2,7 @@
 // Tests the iLQR Tree with LQR parameters to confirm it gives the same answer.
 //
 
-#include <ilqr/ilqr_helpers.hh>
+#include <ilqr/ilqr_taylor_expansions.hh>
 #include <ilqr/ilqr_tree.hh>
 #include <lqr/LQR.hh>
 #include <utils/debug_utils.hh>

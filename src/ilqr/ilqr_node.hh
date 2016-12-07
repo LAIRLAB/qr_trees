@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <ilqr/ilqr_helpers.hh>
+#include <ilqr/ilqr_taylor_expansions.hh>
 
 #include <Eigen/Dense>
 

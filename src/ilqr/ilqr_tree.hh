@@ -16,6 +16,16 @@
 namespace ilqr
 {
 
+// State-Action-Cost-Value(CostToGo).
+struct SACV
+{
+    Eigen::VectorXd x;
+    Eigen::VectorXd u;
+    double c;
+    double probability;
+    double value;
+};
+
 // Shared pointer to a Node in the underlying Tree structure of the iLQR-Tree. Calling ->item()
 // returns a shared pointer to the iLQRNode that holds the state/control/dynamics/etc.
 // information.
@@ -60,12 +70,8 @@ public:
     // Do a full bellman backup on the tree.
     void bellman_tree_backup();
 
-    // TODO: Should make a function that returns a Tree of states with expected cost-to-gos.
-    //void forward_pass(const Eigen::VectorXd &x0, 
-    //        std::vector<Eigen::VectorXd> &states, 
-    //        std::vector<Eigen::VectorXd> &controls, 
-    //        std::vector<double> &costs, 
-    //        const TreeNodePtr &start_node = nullptr);
+    // Returns a Tree of states-action-costs-value with expected cost-to-gos.
+    data::Tree<SACV> forward_pass(const Eigen::VectorXd &x0, const TreeNodePtr &top = nullptr, const double top_alpha = 1.0);
 
 private:
     int state_dim_ = 0;
@@ -87,10 +93,6 @@ private:
     std::list<TreeNodePtr> backup_to_parents(const std::list<TreeNodePtr>
             &all_children);
 
-    // Computes the added weighted quadratic value 
-    // b += probability*a. Each term in 'a' is scaled linearily by probability. 
-    static void add_weighted_value(const double probability, 
-            const QuadraticValue &a, QuadraticValue &b);
 };
 
 } // namespace ilqr

@@ -77,7 +77,7 @@ std::vector<TreeNodePtr> iLQRTree::add_nodes(
     for (const auto &ilqr_node : ilqr_nodes)
     {
         TreeNodePtr child_node = tree_.add_child(parent, ilqr_node);
-        children.emplace_back(child_node);
+        children.push_back(child_node);
     }
     return children;
 }
@@ -202,12 +202,81 @@ std::list<TreeNodePtr> iLQRTree::backup_to_parents(const std::list<TreeNodePtr> 
 
    return parents;
 }
-void iLQRTree::add_weighted_value(const double probability, 
-        const QuadraticValue &a, QuadraticValue &b) 
+
+data::Tree<SACV> iLQRTree::forward_pass(const Eigen::VectorXd &x0, const TreeNodePtr &top, const double top_alpha)
 {
-    b.V() += probability * a.V();
-    b.G() += probability * a.G();
-    b.W() += probability * a.W();
+    data::Tree<SACV> output_tree; 
+
+    // Tuple of parent, child, xt.
+    using ProcessTuple = std::tuple<decltype(output_tree.root()), TreeNodePtr, Eigen::VectorXd>;
+    std::list<ProcessTuple> to_process;
+    static auto get_parent = [](const ProcessTuple& t) { return std::get<0>(t); };
+    static auto get_node = [](const ProcessTuple &t) { return std::get<1>(t); };
+    static auto get_x = [](const ProcessTuple &t) { return std::get<2>(t); };
+
+
+    // If the passed in top pointer is null, then it will start at the top node. 
+    const TreeNodePtr &start = top ? top : tree_.root();
+    to_process.emplace_front(nullptr, start, x0);
+
+    while (!to_process.empty())
+    {
+        ProcessTuple &process_tuple = to_process.back();
+        const std::shared_ptr<iLQRNode> ilqr_node = get_node(process_tuple)->item();
+        const Eigen::VectorXd &xt = get_x(process_tuple);
+
+        Eigen::VectorXd ut;
+        if (get_node(process_tuple) == start)
+        {
+            ut = ilqr_node->compute_control(xt, top_alpha);
+        }
+        else
+        {
+            ut = ilqr_node->compute_control(xt, 1.0);
+        }
+        std::shared_ptr<SACV> output(new SACV());;
+        output->x = xt;
+        output->u = ut;
+        output->c = ilqr_node->cost_func()(xt, ut);
+        output->value = output->c; // we will back up the child costs to this once we have them.
+        output->probability = ilqr_node->probability();
+        decltype(output_tree.root()) new_parent;
+        // If the tree does not have a root yet, then construct a new tree with this as the root.
+        if (!output_tree.root())
+        {
+            output_tree = data::Tree<SACV>(output);
+            new_parent = output_tree.root();
+        }
+        else // Otherwise add this to its parent.
+        {
+            auto parent = get_parent(process_tuple);
+            new_parent = output_tree.add_child(parent, output);
+        }
+        for (const auto &child : get_node(process_tuple)->children()) 
+        {
+            std::shared_ptr<iLQRNode> child_ilqr_node = child->item();
+            const Eigen::VectorXd xt1 = child_ilqr_node->dynamics_func()(xt, ut);
+            to_process.emplace_front(new_parent, child, xt1);
+        }
+
+        to_process.pop_back();
+    }
+
+    // Finally, run through the output tree backwards to compute the cost to go (bellman-backup) the costs.
+    std::list<decltype(output_tree.root())> backwards_process = output_tree.leaf_nodes();
+    while (!backwards_process.empty())
+    {
+
+        auto child = backwards_process.back();
+        auto parent = child->parent();
+        // This child's cost gets added to the parent's value.
+        parent->item()->value += child->item()->probability*child->item()->value;
+        // Add the parent to the front of the queue
+        backwards_process.push_front(parent);
+        backwards_process.pop_back();
+    }
+
+    return output_tree;
 }
 
 } // namespace ilqr

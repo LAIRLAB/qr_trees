@@ -1,3 +1,6 @@
+add_library(test_utils SHARED helpers.cc)
+target_link_libraries(test_utils utils)
+
 add_executable(test_tree test_tree.cc)
 
 add_executable(test_math test_math.cc)
@@ -16,5 +19,5 @@ add_executable(test_lqr_tree test_lqr_tree.cc)
 target_link_libraries(test_lqr_tree lqr_tree lqr)
 
 add_executable(test_ilqrtree_as_lqr test_ilqrtree_as_lqr.cc)
-target_link_libraries(test_ilqrtree_as_lqr ilqr_tree ilqr lqr)
+target_link_libraries(test_ilqrtree_as_lqr ilqr_tree ilqr lqr test_utils)
 

@@ -4,7 +4,9 @@
 
 #include <ilqr/ilqr_taylor_expansions.hh>
 #include <ilqr/ilqr_tree.hh>
+#include <ilqr/ilqrtree_helpers.hh>
 #include <lqr/LQR.hh>
+#include <test/helpers.hh>
 #include <utils/debug_utils.hh>
 #include <utils/math_utils.hh>
 
@@ -17,105 +19,6 @@ namespace
 constexpr double WEAKER_TOL = 5e-3;
 constexpr double TOL = 1e-5;
 constexpr double TIGHTER_TOL = 1e-7;
-
-ilqr::DynamicsFunc create_linear_dynamics(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B)
-{
-    return [&A, &B](const Eigen::VectorXd &x, const Eigen::VectorXd& u) -> Eigen::VectorXd
-    {
-        const int state_dim = x.size();
-        IS_EQUAL(A.cols(), state_dim);
-        IS_EQUAL(A.rows(), state_dim);
-        IS_EQUAL(B.rows(), state_dim);
-        IS_EQUAL(B.cols(), u.size());
-        const Eigen::VectorXd x_next = A*x + B*u;
-        IS_EQUAL(x_next.size(), state_dim);
-        return x_next;
-    };
-}
-
-ilqr::CostFunc create_quadratic_cost(const Eigen::MatrixXd &Q, const Eigen::MatrixXd &R)
-{
-    return [&Q, &R](const Eigen::VectorXd &x, const Eigen::VectorXd& u) -> double
-    {
-        const int state_dim = x.size();
-        const int control_dim = u.size();
-        IS_EQUAL(Q.cols(), state_dim);
-        IS_EQUAL(Q.rows(), state_dim);
-        IS_EQUAL(R.rows(), control_dim);
-        IS_EQUAL(R.cols(), control_dim);
-        const Eigen::VectorXd cost = 0.5*(x.transpose()*Q*x + u.transpose()*R*u);
-        IS_EQUAL(cost.size(), 1);
-        const double c = cost(0);
-        return c;
-    };
-}
-
-Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val)
-{
-    constexpr double MIN_CON = 1e1;
-    Eigen::MatrixXd tmp = 10.*Eigen::MatrixXd::Random(dim, dim);
-    Eigen::MatrixXd symmetric_mat = (tmp + tmp.transpose())/2.0;
-
-    const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(symmetric_mat);
-    Eigen::VectorXd evals = es.eigenvalues();
-    const Eigen::MatrixXd evecs = es.eigenvectors();
-    evals = evals.cwiseMax(Eigen::VectorXd::Constant(dim, min_eig_val));
-    const double condition = evals(evals.size()-1) / evals(0);
-    if (condition < MIN_CON)
-    {
-        evals(evals.size()-1) = evals(0)*MIN_CON;
-    }
-    return evecs * evals.asDiagonal() * evecs.transpose();
-}
-
-
-std::vector<ilqr::TreeNodePtr> construct_chain(const std::vector<Eigen::VectorXd>& xstars, 
-        const std::vector<Eigen::VectorXd>& ustars, const ilqr::DynamicsFunc &dyn, const ilqr::CostFunc &cost,  
-        ilqr::iLQRTree& ilqr_tree)
-{
-    const int T = xstars.size();
-    IS_GREATER(T, 0);
-    IS_EQUAL(xstars.size(), ustars.size());
-    std::vector<ilqr::TreeNodePtr> tree_nodes(T);
-    auto plan_node = ilqr_tree.make_ilqr_node(xstars[0], ustars[0], dyn, cost, 1.0);
-    ilqr::TreeNodePtr last_tree_node = ilqr_tree.add_root(plan_node);
-    tree_nodes[0] = last_tree_node;
-    IS_TRUE(tree_nodes[0])
-    for (int t = 1; t < T; ++t)
-    {
-        // Everything has probability 1.0 since we are making a chain.
-        auto plan_node = ilqr_tree.make_ilqr_node(xstars[t], ustars[t], dyn, cost, 1.0);
-        auto new_nodes = ilqr_tree.add_nodes({plan_node}, last_tree_node);
-        IS_EQUAL(new_nodes.size(), 1);
-        last_tree_node = new_nodes[0];
-        tree_nodes[t] = last_tree_node;
-        IS_TRUE(tree_nodes[t]);
-    }
-
-    return tree_nodes;
-}
-
-void get_forward_pass_info(const std::vector<ilqr::TreeNodePtr> &chain,
-                           const ilqr::CostFunc &cost,  
-                           std::vector<Eigen::VectorXd> &states, 
-                           std::vector<Eigen::VectorXd> &controls, 
-                           std::vector<double> &costs)
-{
-    const int T = chain.size();
-    IS_GREATER(T, 0);
-    states.clear(); states.reserve(T);
-    controls.clear(); controls.reserve(T);
-    costs.clear(); costs.reserve(T);
-    for (const auto& tree_node : chain)
-    {
-        IS_TRUE(tree_node);
-        const auto ilqr_node = tree_node->item();
-        IS_TRUE(ilqr_node);
-        states.push_back(ilqr_node->x());
-        controls.push_back(ilqr_node->u());
-        costs.push_back(cost(ilqr_node->x(), ilqr_node->u()));
-    }
-}
 
 }
 
@@ -153,11 +56,11 @@ void test_with_lqr_initialization(const int state_dim,
     std::vector<Eigen::VectorXd> ilqr_states, ilqr_controls;
     std::vector<double> ilqr_costs;
     ilqr::iLQRTree ilqr_tree(state_dim, control_dim);
-    std::vector<ilqr::TreeNodePtr> ilqr_chain = construct_chain(lqr_states, lqr_controls,
+    std::vector<ilqr::TreeNodePtr> ilqr_chain = ilqr::construct_chain(lqr_states, lqr_controls,
         linear_dyn, quad_cost, ilqr_tree);
     ilqr_tree.bellman_tree_backup();
     ilqr_tree.forward_tree_update(1.0);
-    get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
+    ilqr::get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
 
     // Recompute costs to check that the costs being returned are correct.
     double ilqr_cost = 0;
@@ -194,7 +97,7 @@ void test_with_lqr_initialization(const int state_dim,
     std::vector<double> ilqr_costs_2;
     ilqr_tree.bellman_tree_backup();
     ilqr_tree.forward_tree_update(1.0);
-    get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states_2, ilqr_controls_2, ilqr_costs_2);
+    ilqr::get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states_2, ilqr_controls_2, ilqr_costs_2);
     const double ilqr_total_cost_2 = std::accumulate(ilqr_costs_2.begin(), ilqr_costs_2.end(), 0.0);
     IS_ALMOST_EQUAL(ilqr_total_cost_2, ilqr_total_cost, TIGHTER_TOL);
     IS_TRUE(std::equal(ilqr_costs.begin(), ilqr_costs.end(), 
@@ -258,11 +161,11 @@ void test_converge_to_lqr(const int state_dim, const int control_dim, const int 
     }
 
     ilqr::iLQRTree ilqr_tree(state_dim, control_dim);
-    std::vector<ilqr::TreeNodePtr> ilqr_chain = construct_chain(ilqr_init_states, ilqr_init_controls,
+    std::vector<ilqr::TreeNodePtr> ilqr_chain = ilqr::construct_chain(ilqr_init_states, ilqr_init_controls,
         linear_dyn, quad_cost, ilqr_tree);
     ilqr_tree.bellman_tree_backup();
     ilqr_tree.forward_tree_update(1.0);
-    get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
+    ilqr::get_forward_pass_info(ilqr_chain, quad_cost, ilqr_states, ilqr_controls, ilqr_costs);
 
     // Recompute costs to check that the costs being returned are correct.
     double ilqr_cost = 0;

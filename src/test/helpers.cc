@@ -62,3 +62,16 @@ Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val)
     return evecs * evals.asDiagonal() * evecs.transpose();
 }
 
+std::vector<Eigen::VectorXd> linearly_interpolate(const int t0, 
+        const Eigen::VectorXd& x_t0, const int T, Eigen::VectorXd& x_T)
+{
+    std::vector<Eigen::VectorXd> xstars;
+    Eigen::VectorXd xt = x_t0;
+    for (int t_target = t0; t_target < T; ++t_target)
+    {
+        const double progress = static_cast<double>(t_target)/static_cast<double>(T-1);
+        const Eigen::VectorXd target_state = progress * (x_T - xt) + xt;
+        xstars.push_back(target_state);
+    }
+    return xstars;
+}

@@ -8,6 +8,8 @@
 
 #include <Eigen/Dense>
 
+#include <vector>
+
 ilqr::DynamicsFunc create_linear_dynamics(const Eigen::MatrixXd &A, 
         const Eigen::MatrixXd &B);
 
@@ -24,3 +26,9 @@ ilqr::CostFunc create_quadratic_cost(const Eigen::MatrixXd &Q,
 // Returns a randomly generated [dim x dim] PSD matrix with specified 
 // minimum eigen value.
 Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val);
+
+
+// Linearly interpolate from x_t0 -> x_T corresponding to time steps t0->T.
+std::vector<Eigen::VectorXd> linearly_interpolate(const int t0, 
+        const Eigen::VectorXd& x_t0, const int T, Eigen::VectorXd& x_T);
+

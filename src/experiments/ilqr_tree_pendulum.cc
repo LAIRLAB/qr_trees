@@ -4,8 +4,8 @@
 #include <ilqr/iLQR.hh>
 #include <ilqr/ilqr_tree.hh>
 #include <ilqr/ilqrtree_helpers.hh>
-#include <test/helpers.hh>
 #include <utils/debug_utils.hh>
+#include <utils/helpers.hh>
 #include <utils/math_utils.hh>
 
 #include <algorithm>

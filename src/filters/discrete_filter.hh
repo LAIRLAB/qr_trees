@@ -13,9 +13,19 @@
 namespace filters
 {
 
+double l1_dist(const Eigen::VectorXd& x1, const Eigen::VectorXd& x2, const double weight)
+{
+    return (x1-x2).cwiseAbs().sum();
+}
+
+double squared_dist(const Eigen::VectorXd& x1, const Eigen::VectorXd& x2, const double weight)
+{
+    return weight*(x1-x2).squaredNorm();
+}
+
 double squared_dist(const Eigen::VectorXd& x1, const Eigen::VectorXd& x2)
 {
-    return (x1-x2).squaredNorm();
+    return squared_dist(x1, x2, 1);
 }
 
 template<typename T>
@@ -34,7 +44,7 @@ public:
     // Updates the belief of all "item"s given the observation z_t. obs_func() synthesizes
     // observations given an item of type T.
     void update(const Eigen::VectorXd &z_t, const ObsFunc &obs_func, 
-            const DistFunc &dist_func = squared_dist);
+            const DistFunc &dist_func);
     
     const std::unordered_map<T, double> &beliefs() const { return beliefs_; };
 

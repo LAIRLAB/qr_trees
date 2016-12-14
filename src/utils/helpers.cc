@@ -44,6 +44,22 @@ ilqr::CostFunc create_quadratic_cost(const Eigen::MatrixXd &Q,
     return create_quadratic_cost(Q, R, Eigen::VectorXd::Zero(Q.rows()));
 }
 
+
+double compute_total_cost(const ilqr::CostFunc &cost,  
+                          const std::vector<Eigen::VectorXd> &states, 
+                          const std::vector<Eigen::VectorXd> &controls)  
+{
+    IS_EQUAL(states.size(), controls.size());
+    const int T = states.size();
+    double total_cost = 0;
+    for (int t = 0; t < T; ++t)
+    {
+        total_cost += cost(states[t], controls[t]);
+    }
+    return total_cost;
+}
+
+
 Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val)
 {
     constexpr double MIN_CON = 1e1;
@@ -63,7 +79,7 @@ Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val)
 }
 
 std::vector<Eigen::VectorXd> linearly_interpolate(const int t0, 
-        const Eigen::VectorXd& x_t0, const int T, Eigen::VectorXd& x_T)
+        const Eigen::VectorXd& x_t0, const int T, const Eigen::VectorXd& x_T)
 {
     std::vector<Eigen::VectorXd> xstars;
     Eigen::VectorXd xt = x_t0;

@@ -138,7 +138,7 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R, goal_state);
 
 
-    const std::vector<double> damping_coeffs = {0.1, 1.0};
+    const std::vector<double> damping_coeffs = {0.1, 0.3, 1.0, 10};
 
     std::unordered_map<double, double> uniform_prior;
     for (const auto &d: damping_coeffs)
@@ -203,7 +203,8 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
         }
         case PolicyTypes::ARGMAX_ILQR:
         {
-            const int arg_max_prob = std::distance(probabilities.begin(), std::max_element(probabilities.begin(), probabilities.end()));
+            const int arg_max_prob = std::distance(probabilities.begin(),
+                    std::max_element(probabilities.begin(), probabilities.end()));
             const auto arg_max_dynamics = dynamics_funcs[arg_max_prob];
             ut = policy::chain_policy(t, xt, T, goal_state, Eigen::VectorXd::Zero(CONTROL_DIM), 
                   arg_max_dynamics, quad_cost, ilqr_tree);

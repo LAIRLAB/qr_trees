@@ -10,7 +10,7 @@ namespace
     // Optimizes the ilqr_tree and returns the first control action from the root.
     Eigen::VectorXd optimize_tree(ilqr::iLQRTree &ilqr_tree, const Eigen::VectorXd &x0)
     {
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < 8; ++i)
         {
             ilqr_tree.bellman_tree_backup();
             ilqr_tree.forward_tree_update(0.5);

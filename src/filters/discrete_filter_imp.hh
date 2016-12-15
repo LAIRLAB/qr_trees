@@ -31,7 +31,10 @@ void DiscreteFilter<T>::update(const Eigen::VectorXd &z_t, const ObsFunc& obs_fu
     int i = 0; // counter to go along with range-based iterator
     for (auto &pair : beliefs_)
     {
-        const Eigen::VectorXd hat_z_t = obs_func(pair.first);
+        const T& test_item = pair.first;
+        // Predicted observation given the test item
+        const Eigen::VectorXd hat_z_t = obs_func(test_item);
+        // Compute the exponential distance between the predicted and the actual observation.
         exp_dists[i] = std::exp(-dist_func(z_t, hat_z_t));
         Z_obs += exp_dists[i];
         ++i;
@@ -43,7 +46,7 @@ void DiscreteFilter<T>::update(const Eigen::VectorXd &z_t, const ObsFunc& obs_fu
             {
                 return e/Z_obs;
             }
-            );
+        );
             
     i = 0;
     for (auto &pair : beliefs_)

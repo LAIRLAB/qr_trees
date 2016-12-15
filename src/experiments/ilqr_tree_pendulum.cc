@@ -137,20 +137,24 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
     const Eigen::MatrixXd R = 5e-2*Eigen::MatrixXd::Identity(CONTROL_DIM, CONTROL_DIM);
     const ilqr::CostFunc quad_cost = create_quadratic_cost(Q, R, goal_state);
 
-
+    // Setup damping coefficients. 
     const std::vector<double> damping_coeffs = {0.1, 0.3, 1.0, 10};
 
-    std::unordered_map<double, double> uniform_prior;
-    for (const auto &d: damping_coeffs)
-    {
-        uniform_prior.emplace(d, 1.0/damping_coeffs.size());
-    }
-
-    filters::DiscreteFilter<double> filter(uniform_prior);
+    // Select the true damping coefficient.
     std::uniform_int_distribution<> dis(0, damping_coeffs.size()-1);
     const double true_damping_coeff = damping_coeffs[dis(gen)];
     SUCCESS("True Damping Coeff: " << true_damping_coeff);
+    auto true_dynamics = simulators::pendulum::make_discrete_dynamics_func(dt, LENGTH, true_damping_coeff);
 
+    // Initialize the filter with a uniform prior.
+    std::unordered_map<double, double> uniform_prior;
+    for (const auto &d : damping_coeffs)
+    {
+        uniform_prior.emplace(d, 1.0/damping_coeffs.size());
+    }
+    filters::DiscreteFilter<double> filter(uniform_prior);
+
+    // Create observation model for filter.
     Eigen::VectorXd xt = x0;
     Eigen::VectorXd ut = Eigen::VectorXd::Random(CONTROL_DIM);
     filters::DiscreteFilter<double>::ObsFunc obs_func = [&xt, &ut, dt](double damping_coeff)
@@ -158,9 +162,14 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
             auto dynamics = simulators::pendulum::make_discrete_dynamics_func(dt, LENGTH, damping_coeff);
             return dynamics(xt, ut);
         };   
-    
-    auto true_dynamics = simulators::pendulum::make_discrete_dynamics_func(dt, LENGTH, true_damping_coeff);
 
+    // Distance function for using in the filter.
+    const auto obs_dist_func = [](const Eigen::VectorXd& x1, const Eigen::VectorXd& x2)
+    {
+        return filters::squared_dist(x1, x2, 1e1);
+    };
+
+    // Extract probabilities from the filter for each damping coeff and create a dynamics function for each.
     std::vector<double> probabilities;
     std::vector<ilqr::DynamicsFunc> dynamics_funcs;
     auto beliefs = filter.beliefs();
@@ -169,11 +178,6 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
         probabilities.push_back(belief.second);
         dynamics_funcs.push_back(simulators::pendulum::make_discrete_dynamics_func(dt, LENGTH, belief.first));
     }
-
-    const auto obs_dist_func = [](const Eigen::VectorXd& x1, const Eigen::VectorXd& x2)
-    {
-        return filters::squared_dist(x1, x2, 1e1);
-    };
 
     // Run the filter and control policy.
     double rollout_cost = 0;
@@ -224,8 +228,8 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
 
         // Full state observation model.
         const Eigen::VectorXd zt1 = xt1; 
-
         filter.update(zt1, obs_func, obs_dist_func);
+
         xt = xt1;
     }
 

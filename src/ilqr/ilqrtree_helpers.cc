@@ -99,6 +99,50 @@ void construct_hindsight_split_tree(const std::vector<Eigen::VectorXd>& xstars,
 }
 
 
+void construct_hindsight_split_tree(const std::vector<Eigen::VectorXd>& xstars, 
+        const std::vector<Eigen::VectorXd>& ustars, 
+        const std::vector<double> &probabilities, 
+        const ilqr::DynamicsFunc &dynamics_func,
+        const std::vector<ilqr::CostFunc> &cost_funcs, 
+        ilqr::iLQRTree& ilqr_tree)
+{
+    const int T = xstars.size();
+    IS_GREATER_EQUAL(T, 0);
+    IS_EQUAL(xstars.size(), ustars.size());
+
+    const int num_splits = probabilities.size();
+    IS_EQUAL(probabilities.size(), cost_funcs.size());
+
+    const int arg_max = std::distance(probabilities.begin(), std::max_element(probabilities.begin(), probabilities.end()));
+    ilqr::TreeNodePtr root_node = ilqr_tree.add_root(xstars[0], ustars[0], dynamics_func, cost_funcs[arg_max]);
+    // If there's only 1 timestep, then the root is it. 
+    if (T == 1)
+    {
+        return;
+    }
+
+    std::vector<std::shared_ptr<ilqr::iLQRNode>> hindsight_splits(num_splits);
+    for (int i = 0; i < num_splits; ++i)
+    {
+        hindsight_splits[i] = ilqr_tree.make_ilqr_node(xstars[1], ustars[1], dynamics_func, cost_funcs[i], probabilities[i]);
+    }
+    std::vector<ilqr::TreeNodePtr> hindsight_nodes = ilqr_tree.add_nodes(hindsight_splits, root_node);
+    IS_EQUAL(probabilities.size(), hindsight_nodes.size());
+
+    for (const auto &hindsight_node : hindsight_nodes)
+    {
+        auto parent = hindsight_node;
+        for (int t = 2; t< T; ++t)
+        {
+            auto child_ilqr_node = ilqr_tree.make_ilqr_node(xstars[t], ustars[t], dynamics_func, hindsight_node->item()->cost_func(), 1.0);
+            auto parents = ilqr_tree.add_nodes({child_ilqr_node}, parent);
+            IS_EQUAL(parents.size(), 1);
+            parent = parents[0];
+        }
+    }
+}
+
+
 
 } // namespace ilqr
 

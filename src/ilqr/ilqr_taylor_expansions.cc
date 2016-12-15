@@ -71,29 +71,42 @@ ilqr::Cost quadraticize_cost(const CostFunc &cost_func,
     xu.topRows(state_dim) = x;
     xu.bottomRows(control_dim) = u;
 
-    // Zero out components that are less than this threshold. We do this since
-    // finite differencing has numerical issues.
     constexpr double ZERO_THRESH = 1e-7;
-    auto H = math::hessian(cost_wrapper, xu);
-    H = H.array() * (H.array().abs() > ZERO_THRESH).cast<double>();
-    Q = H.topLeftCorner(state_dim, state_dim);
-    P = H.topRightCorner(state_dim, control_dim);
-    R = H.bottomRightCorner(control_dim, control_dim);
 
-    auto g = math::gradient(cost_wrapper, xu);
+    Eigen::VectorXd g = math::gradient(cost_wrapper, xu);
     g = g.array() * (g.array().abs() > ZERO_THRESH).cast<double>();
     IS_EQUAL(g.size(), state_dim + control_dim);
     g_x = g.topRows(state_dim);
     g_u = g.bottomRows(control_dim);
 
+
+    // Zero out components that are less than this threshold. We do this since
+    // finite differencing has numerical issues.
+    Eigen::MatrixXd H = math::hessian(cost_wrapper, xu);
+    //Eigen::MatrixXd H = g * g.transpose();
+    H = H.array() * (H.array().abs() > ZERO_THRESH).cast<double>();
+    Q = H.topLeftCorner(state_dim, state_dim);
+    P = H.topRightCorner(state_dim, control_dim);
+    R = H.bottomRightCorner(control_dim, control_dim);
+
     c = cost_wrapper(xu);
     
+    Q = (Q + Q.transpose())/2.0;
+    try
+    {
+        IS_TRUE(math::is_symmetric(Q));
+    }
+    catch (...)
+    {
+        WARN("H\n" << g);
+
+    }
     Q = math::project_to_psd(Q, 1e-11);
     math::check_psd(Q, 1e-12);
 
     // Control terms.
     R = math::project_to_psd(R, 1e-8);
-    math::check_psd(R, 1e-9);
+    //math::check_psd(R, 1e-9);
 
     return cost;
 }

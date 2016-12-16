@@ -202,7 +202,7 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
         case PolicyTypes::TRUE_ILQR:
         {
             ut = policy::chain_policy(t, xt, T, goal_state, Eigen::VectorXd::Zero(CONTROL_DIM), 
-              true_dynamics, quad_cost, ilqr_tree);
+              true_dynamics, quad_cost, quad_cost, ilqr_tree);
               break;
         }
         case PolicyTypes::ARGMAX_ILQR:
@@ -211,7 +211,7 @@ void discrete_damping_coeff_pendulum(const int T, const double dt, const PolicyT
                     std::max_element(probabilities.begin(), probabilities.end()));
             const auto arg_max_dynamics = dynamics_funcs[arg_max_prob];
             ut = policy::chain_policy(t, xt, T, goal_state, Eigen::VectorXd::Zero(CONTROL_DIM), 
-                  arg_max_dynamics, quad_cost, ilqr_tree);
+                  arg_max_dynamics, quad_cost, quad_cost, ilqr_tree);
             break; 
         }
         case PolicyTypes::PROB_WEIGHTED_CONTROL:

@@ -9,6 +9,7 @@ std::vector<ilqr::TreeNodePtr> construct_chain(
         const std::vector<Eigen::VectorXd>& ustars, 
         const ilqr::DynamicsFunc &dyn, 
         const ilqr::CostFunc &cost,  
+        const ilqr::CostFunc &final_cost,  
         ilqr::iLQRTree& ilqr_tree)
 {
     const int T = xstars.size();
@@ -22,7 +23,12 @@ std::vector<ilqr::TreeNodePtr> construct_chain(
     for (int t = 1; t < T; ++t)
     {
         // Everything has probability 1.0 since we are making a chain.
-        auto plan_node = ilqr_tree.make_ilqr_node(xstars[t], ustars[t], dyn, cost, 1.0);
+        ilqr::CostFunc cost_func = cost;
+        if (t == T-1 && final_cost)
+        {
+            cost_func = final_cost;
+        }
+        auto plan_node = ilqr_tree.make_ilqr_node(xstars[t], ustars[t], dyn, cost_func, 1.0);
         auto new_nodes = ilqr_tree.add_nodes({plan_node}, last_tree_node);
         IS_EQUAL(new_nodes.size(), 1);
         last_tree_node = new_nodes[0];
@@ -31,6 +37,16 @@ std::vector<ilqr::TreeNodePtr> construct_chain(
     }
 
     return tree_nodes;
+}
+
+std::vector<ilqr::TreeNodePtr> construct_chain(
+        const std::vector<Eigen::VectorXd>& xstars, 
+        const std::vector<Eigen::VectorXd>& ustars, 
+        const ilqr::DynamicsFunc &dyn, 
+        const ilqr::CostFunc &cost,  
+        ilqr::iLQRTree& ilqr_tree)
+{
+    return construct_chain(xstars, ustars, dyn, cost, cost, ilqr_tree);
 }
 
 void get_forward_pass_info(const std::vector<ilqr::TreeNodePtr> &chain,
@@ -104,6 +120,7 @@ void construct_hindsight_split_tree(const std::vector<Eigen::VectorXd>& xstars,
         const std::vector<double> &probabilities, 
         const ilqr::DynamicsFunc &dynamics_func,
         const std::vector<ilqr::CostFunc> &cost_funcs, 
+        const std::vector<ilqr::CostFunc> &final_cost_funcs, 
         ilqr::iLQRTree& ilqr_tree)
 {
     const int T = xstars.size();
@@ -112,6 +129,10 @@ void construct_hindsight_split_tree(const std::vector<Eigen::VectorXd>& xstars,
 
     const int num_splits = probabilities.size();
     IS_EQUAL(probabilities.size(), cost_funcs.size());
+    if (!final_cost_funcs.empty())
+    {
+        IS_EQUAL(final_cost_funcs.size(), probabilities.size());
+    }
 
     const int arg_max = std::distance(probabilities.begin(), std::max_element(probabilities.begin(), probabilities.end()));
     ilqr::TreeNodePtr root_node = ilqr_tree.add_root(xstars[0], ustars[0], dynamics_func, cost_funcs[arg_max]);
@@ -129,12 +150,19 @@ void construct_hindsight_split_tree(const std::vector<Eigen::VectorXd>& xstars,
     std::vector<ilqr::TreeNodePtr> hindsight_nodes = ilqr_tree.add_nodes(hindsight_splits, root_node);
     IS_EQUAL(probabilities.size(), hindsight_nodes.size());
 
-    for (const auto &hindsight_node : hindsight_nodes)
+    for (int i = 0; i < num_splits; ++i)
     {
+        const auto &hindsight_node = hindsight_nodes[i];
         auto parent = hindsight_node;
-        for (int t = 2; t< T; ++t)
+        for (int t = 2; t < T; ++t)
         {
-            auto child_ilqr_node = ilqr_tree.make_ilqr_node(xstars[t], ustars[t], dynamics_func, hindsight_node->item()->cost_func(), 1.0);
+            ilqr::CostFunc cost_func = hindsight_node->item()->cost_func();
+            // If on the last time-step and we have final_cost_funcs, use that instead.
+            if (t == T-1 && !final_cost_funcs.empty())
+            {
+                cost_func = final_cost_funcs[i];
+            }
+            auto child_ilqr_node = ilqr_tree.make_ilqr_node(xstars[t], ustars[t], dynamics_func, cost_func, 1.0);
             auto parents = ilqr_tree.add_nodes({child_ilqr_node}, parent);
             IS_EQUAL(parents.size(), 1);
             parent = parents[0];

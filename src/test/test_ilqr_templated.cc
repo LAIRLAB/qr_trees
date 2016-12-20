@@ -12,16 +12,17 @@
 
 namespace
 {
-    constexpr double TOL = 1e-5;
+    constexpr int xdim = 3;
+    constexpr int udim = 2;
+
+    // Should be higher as the cost convg. threshold for iLQRSolver.
+    constexpr double TOL = 1e-3; 
 
     template<int _rows>
     using Vector = ilqr::Vector<_rows>;
 
     template<int _rows, int _cols>
     using Matrix = ilqr::Matrix<_rows, _cols>;
-
-    constexpr int xdim = 3;
-    constexpr int udim = 2;
 
     Matrix<xdim, xdim> A = Matrix<xdim, xdim>::Identity();
     Matrix<xdim, udim> B = 2*Matrix<xdim, udim>::Identity();
@@ -72,8 +73,9 @@ void test_ilqr_vs_lqr(const int T)
 
 
     constexpr bool verbose = false;
-    constexpr double mu = 0;
     constexpr int max_iters = 300;
+
+    double mu = 0.0;
     clock_t ilqr_begin_time = clock();
     ilqr::iLQRSolver<xdim,udim> solver(dynamics, final_cost, cost);
     solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
@@ -81,8 +83,20 @@ void test_ilqr_vs_lqr(const int T)
     std::vector<Vector<udim>> ilqr_temp_controls;
     const double ilqr_temp_total_cost = solver.forward_pass(x_init, ilqr_temp_states, 
             ilqr_temp_controls, 1.0);
-    SUCCESS("iLQR Templated Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
+    SUCCESS("iLQR Templated (mu=" << mu << ") Time: " 
+            << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
             << "\nTotal Cost: " << ilqr_temp_total_cost);
+
+    // With a higher mu (Levenberg-Marquardt parameter), it should converge slower, but still
+    // converge with almost the same value (it is slightly off due to the damping).
+    mu = 0.5;
+    ilqr_begin_time = clock();
+    solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
+    const double ilqr_temp_higher_mu_total_cost = solver.forward_pass(x_init, ilqr_temp_states, 
+            ilqr_temp_controls, 1.0);
+    SUCCESS("iLQR Templated (mu=" << mu << ") Time: " 
+            << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
+            << "\nTotal Cost: " << ilqr_temp_higher_mu_total_cost);
 
     clock_t lqr_begin_time = clock();
     lqr::LQR regular_lqr(A, B, Q, R, T);
@@ -114,6 +128,9 @@ void test_ilqr_vs_lqr(const int T)
     IS_ALMOST_EQUAL(ilqr_dyn_total_cost, lqr_total_cost, TOL);
     IS_ALMOST_EQUAL(ilqr_temp_total_cost, ilqr_dyn_total_cost, TOL);
     IS_ALMOST_EQUAL(ilqr_temp_total_cost, lqr_total_cost, TOL);
+    IS_ALMOST_EQUAL(ilqr_temp_total_cost, ilqr_temp_higher_mu_total_cost, TOL);
+
+    DEBUG("All methods' costs are almost equal.");
 }
 
 int main()

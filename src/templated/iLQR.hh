@@ -97,6 +97,9 @@ public:
         std::vector<Vector<_udim>> uhat_new (T, Vector<_udim>::Zero());
         std::vector<Vector<_xdim>> xhat_new(T+1, Vector<_xdim>::Zero());
 
+        // Levenberg-Marquardt parameter for damping. ie. eigenvalue inflation matrix.
+        const Matrix<_xdim, _xdim> LM = mu * Matrix<_xdim, _xdim>::Identity();
+
         double old_cost = std::numeric_limits<double>::infinity();
         int iter = 0;
         for (iter = 0; iter < max_iters; ++iter)
@@ -153,15 +156,15 @@ public:
             // Backwards pass
             for (int t = T; t != -1; --t)
             {
-                Matrix<_xdim, _xdim> A; A.setZero();
-                Matrix<_xdim, _udim> B; B.setZero();
+                Matrix<_xdim, _xdim> A; 
+                Matrix<_xdim, _udim> B;
                 linearize_dynamics(this->true_dynamics_, xhat_[t], uhat_[t], A, B);
 
-                Matrix<_xdim,_xdim> Q; Q.setZero();
-                Matrix<_udim,_udim> R; R.setZero();
-                Matrix<_xdim,_udim> P; P.setZero();
-                Vector<_xdim> g_x; g_x.setZero();
-                Vector<_udim> g_u; g_u.setZero();
+                Matrix<_xdim,_xdim> Q;
+                Matrix<_udim,_udim> R;
+                Matrix<_xdim,_udim> P;
+                Vector<_xdim> g_x;
+                Vector<_udim> g_u;
                 double c = 0;
                 if (t == T)
                 {
@@ -174,8 +177,8 @@ public:
                             Q, R, P, g_x, g_u, c);
                 }
 
-                const Matrix<_udim, _udim> inv_term = -1.0*(R + B.transpose()*Vt1*B).inverse();
-                const Matrix<_udim, _xdim> Kt = inv_term * (P.transpose() + B.transpose()*Vt1*A); 
+                const Matrix<_udim, _udim> inv_term = -1.0*(R + B.transpose()*(Vt1+LM)*B).inverse();
+                const Matrix<_udim, _xdim> Kt = inv_term * (P.transpose() + B.transpose()*(Vt1+LM)*A); 
                 const Vector<_udim> kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
 
                 const Matrix<_xdim, _xdim> tmp = (A + B*Kt);

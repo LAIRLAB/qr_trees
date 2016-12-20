@@ -41,8 +41,6 @@ void linearize_dynamics(const DynamicsFunc &dynamics_func,
     const Matrix<_xdim, _xdim+_udim> J 
         = math::jacobian<_xdim+_udim, _xdim, decltype(helper)>(helper, xu);
 
-    WARN("J\n" << J);
-
     A = J.leftCols(_xdim);
     B = J.rightCols(_udim);
 }
@@ -70,11 +68,11 @@ void quadratize_cost(const CostFunc &cost_func,
     xu.topRows(_xdim) = x;
     xu.bottomRows(_udim) = u;
 
-    //constexpr double ZERO_THRESH = 1e-7;
+    constexpr double ZERO_THRESH = 1e-7;
 
     Vector<_xdim+_udim> g 
         = math::gradient<_xdim+_udim, decltype(helper)>(helper, xu);
-    //g = g.array() * (g.array().abs() > ZERO_THRESH).cast<double>();
+    g = g.array() * (g.array().abs() > ZERO_THRESH).template cast<double>();
     g_x = g.topRows(_xdim);
     g_u = g.bottomRows(_udim);
 
@@ -84,7 +82,7 @@ void quadratize_cost(const CostFunc &cost_func,
     Matrix<_xdim+_udim,_xdim+_udim> H 
         = math::hessian<_xdim+_udim, decltype(helper)>(helper, xu);
     //Eigen::MatrixXd H = g * g.transpose();
-    //H = H.array() * (H.array().abs() > ZERO_THRESH).cast<double>();
+    H = H.array() * (H.array().abs() > ZERO_THRESH).template cast<double>();
     Q = H.topLeftCorner(_xdim, _xdim);
     P = H.topRightCorner(_xdim, _udim);
     R = H.bottomRightCorner(_udim, _udim);

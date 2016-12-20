@@ -12,6 +12,7 @@
 
 #include <tuple>
 #include <vector>
+#include <ostream>
 
 namespace ilqr
 {
@@ -28,6 +29,21 @@ namespace ilqr
 //
 //template<int _xdim, int _udim>
 //using CostPtr = double(Vector<_xdim>, Vector<_udim>);
+
+template<int _dim>
+std::ostream& operator<<(std::ostream &os, const std::vector<Vector<_dim>> &vectors)
+{
+    for (size_t t = 0; t < vectors.size(); ++t)
+    {
+        const Vector<_dim> &vec = vectors[t];
+        os << "t=" << t  << ": " << vec.transpose(); 
+        if (t < vectors.size() -1)
+        {
+            os << std::endl;
+        }
+    }
+    return os;
+}
 
 template<int _xdim, int _udim>
 class iLQR
@@ -47,7 +63,7 @@ public:
         this->true_cost_ = cost;
         this->true_final_cost_ = final_cost;
         u_nominal_ = u_nominal;
-        x_init_ = x_init_;
+        x_init_ = x_init;
 
         this->uhat = std::vector<Vector<_udim>>(T, u_nominal);
         this->xhat = std::vector<Vector<_xdim>>(T, Vector<_xdim>::Zero());
@@ -56,8 +72,13 @@ public:
         this->ks_ = std::vector<Vector<_udim>>(T+1, Vector<_udim>::Zero());
     }
 
-    void solve()
+    void solve(bool verbose = false)
     {
+        const int max_iters = 30;
+
+        Ks_ = std::vector<Matrix<_udim, _xdim>>(T_+1, Matrix<_udim, _xdim>::Zero());
+        ks_ = std::vector<Vector<_udim>>(T_+1, Vector<_udim>::Zero());
+
         uhat = std::vector<Vector<_udim>>(T_, u_nominal_);
         xhat = std::vector<Vector<_xdim>>(T_+1, Vector<_xdim>::Zero());
 
@@ -65,79 +86,107 @@ public:
         std::vector<Vector<_xdim>> xhat_new(T_+1, Vector<_xdim>::Zero());
 
         double old_cost = std::numeric_limits<double>::infinity();
-        double new_cost = 0;
-        do
+        int iter = 0;
+        for (iter = 0; iter < max_iters; ++iter)
         {
-            new_cost = 0;
-            xhat_new[0] = x_init_;
-            for (int t = 0; t < T_; ++t)
+            double new_cost = 0;
+            // Line search as decribed in 
+            // https://studywolf.wordpress.com/2016/02/03/the-iterative-linear-quadratic-regulator-method/
+            double alpha = 1.0;
+            do
             {
-                const Matrix<_udim, _xdim> &Kt = Ks_[t];
-                const Vector<_udim> &kt = ks_[t];
-                Vector<_xdim> zt = (xhat_new[t] - xhat[t]);
+                new_cost = 0;
+                xhat_new[0] = x_init_;
+                for (int t = 0; t < T_; ++t)
+                {
+                    const Matrix<_udim, _xdim> &Kt = Ks_[t];
+                    const Vector<_udim> &kt = ks_[t];
 
-                const Vector<_udim> vt = Kt * zt + kt;
+                    const Vector<_xdim> zt = (xhat_new[t] - xhat[t]);
 
-                uhat_new[t] = vt + uhat[t];
+                    const Vector<_udim> vt = Kt * zt + alpha*kt;
 
-                const double cost = true_cost_(xhat_new[t], uhat_new[t]);
-                new_cost += cost;
+                    uhat_new[t] = vt + uhat[t];
 
-                // Roll forward the dynamics.
-                xhat_new[t+1] = true_dynamics_(xhat_new[t], uhat_new[t]);
+                    const double cost = true_cost_(xhat_new[t], uhat_new[t]);
+                    new_cost += cost;
+
+                    // Roll forward the dynamics.
+                    const Vector<_xdim> xt1 = true_dynamics_(xhat_new[t], uhat_new[t]);
+                    xhat_new[t+1] = xt1;
+                }
+                new_cost += true_final_cost_(xhat_new[T_], Vector<_udim>::Zero());
+                // If we fail to do better than before, then try to half the step size.
+                // It will stop halfing it when the ratio (change in cost-to-go) gets too small.
+                // That is, we have a step size for which we have converged. 
+                alpha *= 0.5;
+            } while(!(new_cost < old_cost 
+                    || std::abs((old_cost - new_cost) / new_cost) < 1e-4));
+            // Since we always half it at the end of the iteration, double it
+            alpha = 2.0*alpha;
+
+            xhat = xhat_new;
+            uhat = uhat_new;
+
+            const double cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
+            if (verbose)
+            {
+                PRINT("[Iter " << iter << "]: Alpha: " << alpha << ", Cost ratio: " << cost_diff_ratio 
+                        << ", New Cost: " << new_cost
+                        << ", Old Cost: " << old_cost);
             }
-            new_cost += true_final_cost_(xhat_new[T_], Vector<_udim>::Zero());
-        } while(0);
 
-        xhat = xhat_new;
-        uhat = uhat_new;
+            if (cost_diff_ratio < 1e-4) 
+            {
+                break;
+            }
 
-        // prevent unused variable
-        if (old_cost < new_cost)
-        {
+            old_cost = new_cost;
+
+            Matrix<_xdim, _xdim> Vt1; Vt1.setZero();
+            Matrix<1, _xdim> Gt1; Gt1.setZero();
+
+            // Backwards pass
+            for (int t = T_; t != -1; --t)
+            {
+                Matrix<_xdim, _xdim> A; A.setZero();
+                Matrix<_xdim, _udim> B; B.setZero();
+                linearize_dynamics(this->true_dynamics_, xhat[t], uhat[t], A, B);
+
+                Matrix<_xdim,_xdim> Q; Q.setZero();
+                Matrix<_udim,_udim> R; R.setZero();
+                Matrix<_xdim,_udim> P; P.setZero();
+                Vector<_xdim> g_x; g_x.setZero();
+                Vector<_udim> g_u; g_u.setZero();
+                double c = 0;
+                if (t == T_)
+                {
+                    quadratize_cost(this->true_final_cost_, xhat[t], Vector<_udim>::Zero(), 
+                            Q, R, P, g_x, g_u, c);
+                }
+                else
+                {
+                    quadratize_cost(this->true_cost_, xhat[t], uhat[t], 
+                            Q, R, P, g_x, g_u, c);
+                }
+
+                const Matrix<_udim, _udim> inv_term = -1.0*(R + B.transpose()*Vt1*B).inverse();
+                const Matrix<_udim, _xdim> Kt = inv_term * (P.transpose() + B.transpose()*Vt1*A); 
+                const Vector<_udim> kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
+
+                const Matrix<_xdim, _xdim> tmp = (A + B*Kt);
+                const Matrix<_xdim, _xdim> Vt = Q + 2.0*(P*Kt) + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
+
+                const Matrix<1, _xdim> Gt = kt.transpose()*P.transpose() + kt.transpose()*R*Kt + g_x.transpose() 
+                    + g_u.transpose()*Kt + kt.transpose()*B.transpose()*Vt1*tmp + Gt1*tmp;
+                Vt1 = Vt;
+                Gt1 = Gt;
+                Ks_[t] = Kt;
+                ks_[t] = kt;
+            }
         }
 
-        old_cost = new_cost;
-
-        Matrix<_xdim, _xdim> Vt1; Vt1.setZero();
-        Matrix<1, _xdim> Gt1; Gt1.setZero();
-
-        // Backwards pass
-        for (int t = T_; t != -1; --t)
-        {
-            Matrix<_xdim, _xdim> A;
-            Matrix<_xdim, _udim> B;
-            linearize_dynamics(this->true_dynamics_, xhat[t], uhat[t], A, B);
-
-            Matrix<_xdim,_xdim> Q;
-            Matrix<_udim,_udim> R;
-            Matrix<_xdim,_udim> P;
-            Vector<_xdim> g_x;
-            Vector<_udim> g_u;
-            double c;
-            if (t == T_)
-            {
-                quadratize_cost(this->true_final_cost_, xhat[t], Vector<_udim>::Zero(), Q, R, P, g_x, g_u, c);
-            }
-            else
-            {
-                quadratize_cost(this->true_cost_, xhat[t], uhat[t], Q, R, P, g_x, g_u, c);
-            }
-
-            const Matrix<_udim, _udim> inv_term = -1.0*(R + B.transpose()*Vt1*B).inverse();
-            const Matrix<_udim, _xdim> Kt = inv_term * (P.transpose() + B.transpose()*Vt1*A); 
-            const Vector<_udim> kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
-
-            const Matrix<_xdim, _xdim> tmp = (A + B*Kt);
-            const Matrix<_xdim, _xdim> Vt = Q + 2.0*(P*Kt) + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
-
-            const Matrix<1, _xdim> Gt = kt.transpose()*P.transpose() + kt.transpose()*R*Kt + g_x.transpose() 
-                + g_u.transpose()*Kt + kt.transpose()*B.transpose()*Vt1*tmp + Gt1*tmp;
-            Vt1 = Vt;
-            Gt1 = Gt;
-            Ks_[t] = Kt;
-            ks_[t] = kt;
-        }
+        SUCCESS("Converged after " << iter << " iterations.");
     }
 
 

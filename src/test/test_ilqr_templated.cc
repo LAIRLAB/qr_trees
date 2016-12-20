@@ -12,6 +12,8 @@
 
 namespace
 {
+    constexpr double TOL = 1e-5;
+
     template<int _rows>
     using Vector = ilqr::Vector<_rows>;
 
@@ -58,10 +60,10 @@ namespace
     }
 }
 
-int main()
+void test_ilqr_vs_lqr(const int T)
 {
+    DEBUG("Testing T=" << T);
 
-    constexpr int T = 3;
     const auto dynamics = linear_dynamics;
     const auto cost = quadratic_cost;
     const auto final_cost = zero_cost;
@@ -69,15 +71,29 @@ int main()
     Vector<xdim> x_init; x_init.setOnes();
 
 
+    constexpr bool verbose = false;
+    constexpr double mu = 0;
+    constexpr int max_iters = 300;
     clock_t ilqr_begin_time = clock();
-    ilqr::iLQRSolver<xdim,udim> solver(T, dynamics, final_cost, cost);
-    solver.solve(x_init, u_nominal, true);
-    SUCCESS("iLQR Templated Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
+    ilqr::iLQRSolver<xdim,udim> solver(dynamics, final_cost, cost);
+    solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
+    std::vector<Vector<xdim>> ilqr_temp_states; 
+    std::vector<Vector<udim>> ilqr_temp_controls;
+    const double ilqr_temp_total_cost = solver.forward_pass(x_init, ilqr_temp_states, 
+            ilqr_temp_controls, 1.0);
+    SUCCESS("iLQR Templated Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
+            << "\nTotal Cost: " << ilqr_temp_total_cost);
 
     clock_t lqr_begin_time = clock();
     lqr::LQR regular_lqr(A, B, Q, R, T);
     regular_lqr.solve();
-    SUCCESS("LQR Time: " << (clock() - lqr_begin_time) / (double) CLOCKS_PER_SEC);
+    std::vector<double> lqr_costs;
+    std::vector<Eigen::VectorXd> lqr_states; 
+    std::vector<Eigen::VectorXd> lqr_controls;
+    regular_lqr.forward_pass(x_init, lqr_costs, lqr_states, lqr_controls);
+    const double lqr_total_cost = std::accumulate(lqr_costs.begin(), lqr_costs.end(), 0.0);
+    SUCCESS("LQR Time: " << (clock() - lqr_begin_time) / (double) CLOCKS_PER_SEC
+            << "\nTotal Cost: " << lqr_total_cost);
 
     std::vector<double> ilqr_dyn_costs;
     std::vector<Eigen::VectorXd> ilqr_dyn_states; 
@@ -91,16 +107,21 @@ int main()
     ilqr_dynamic.backwards_pass();
     ilqr_dynamic.forward_pass(ilqr_dyn_costs, ilqr_dyn_states, ilqr_dyn_controls, true);
     const double ilqr_dyn_total_cost = std::accumulate(ilqr_dyn_costs.begin(), ilqr_dyn_costs.end(), 0.0);
-    SUCCESS("iLQR Dynamic Time: " << (clock() - ilqr_dyn_begin_time) / (double) CLOCKS_PER_SEC);
-    WARN("ilqr_dynamic cost: " << ilqr_dyn_total_cost);
+    SUCCESS("iLQR Dynamic Time: " << (clock() - ilqr_dyn_begin_time) / (double) CLOCKS_PER_SEC
+            << "\nTotal Cost: " << ilqr_dyn_total_cost);
 
-    std::vector<double> lqr_costs;
-    std::vector<Eigen::VectorXd> lqr_states; 
-    std::vector<Eigen::VectorXd> lqr_controls;
-    regular_lqr.forward_pass(x_init, lqr_costs, lqr_states, lqr_controls);
-    const double lqr_total_cost = std::accumulate(lqr_costs.begin(), lqr_costs.end(), 0.0);
-    WARN("lqr_cost: " << lqr_total_cost);
-    WARN("lqr_controls:\n " << lqr_controls);
+    // Make sure all the costs are about equal.
+    IS_ALMOST_EQUAL(ilqr_dyn_total_cost, lqr_total_cost, TOL);
+    IS_ALMOST_EQUAL(ilqr_temp_total_cost, ilqr_dyn_total_cost, TOL);
+    IS_ALMOST_EQUAL(ilqr_temp_total_cost, lqr_total_cost, TOL);
+}
+
+int main()
+{
+    test_ilqr_vs_lqr(2);
+    test_ilqr_vs_lqr(3);
+    test_ilqr_vs_lqr(10);
+    test_ilqr_vs_lqr(100);
 
     return 0;
 }

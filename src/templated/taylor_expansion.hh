@@ -20,7 +20,6 @@ template<int _xdim, int _udim>
 using CostPtr = double(const Vector<_xdim> &x, const Vector<_udim>&u);
 
 template<int _xdim, int _udim, typename DynamicsFunc>
-//void linearize_dynamics(DynamicsPtr<_xdim, _udim> dynamics_func, 
 void linearize_dynamics(const DynamicsFunc &dynamics_func, 
                         const Vector<_xdim> &x, 
                         const Vector<_udim> &u,

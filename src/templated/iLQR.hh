@@ -51,26 +51,18 @@ class iLQRSolver
     static_assert(_xdim > 0, "State dimension should be greater than 0");
     static_assert(_udim > 0, "Control dimension should be greater than 0");
 public:
-    iLQRSolver(const int T,
-         DynamicsPtr<_xdim,_udim> dynamics, 
+    iLQRSolver(DynamicsPtr<_xdim,_udim> dynamics, 
          CostPtr<_xdim,_udim> final_cost,
          CostPtr<_xdim,_udim> cost
          )
     {
-        T_ = T;
         this->true_dynamics_ = dynamics;
         this->true_cost_ = cost;
         this->true_final_cost_ = final_cost;
-
-        this->uhat_ = std::vector<Vector<_udim>>(T, Vector<_udim>::Zero());
-        this->xhat_ = std::vector<Vector<_xdim>>(T, Vector<_xdim>::Zero());
-
-        this->Ks_ = std::vector<Matrix<_udim, _xdim>>(T+1, Matrix<_udim, _xdim>::Zero());
-        this->ks_ = std::vector<Vector<_udim>>(T+1, Vector<_udim>::Zero());
     }
 
     // Computes the control at timestep t at xt.
-    // alpha = 1 is regular forward pass.
+    // :param alpha - Backtracking line search parameter. Setting to 1 gives regular forward pass.
     inline Vector<_udim> compute_control_stepsize(const Vector<_xdim> &xt, int t, double alpha) const
     {
         const Matrix<_udim, _xdim> &Kt = Ks_[t];
@@ -82,53 +74,73 @@ public:
         return Vector<_udim>(vt + uhat_[t]);
     }
 
-
-    inline void solve(const Vector<_xdim> &x_init, const Vector<_udim> u_nominal, bool verbose = false)
+    // :param x_init - Initial state from which to start the system from.
+    // :param u_nominal - Initial control used for the whole sequence during the first forward pass.
+    // :param mu - Levenberg-Marquardt parameter for damping the least-squares. Setting it to 0 gets
+    //      the default behavior. The damping makes the state-space steps smaller over
+    //      iterations. 
+    inline void solve(const int T, const Vector<_xdim> &x_init, const Vector<_udim> u_nominal, 
+            double mu = 0, const int max_iters = 1000, bool verbose = false)
     {
-        const int max_iters = 30;
+        IS_GREATER(T, 0);
+        IS_GREATER_EQUAL(mu, 0);
+        IS_GREATER(max_iters, 0);
 
-        Ks_ = std::vector<Matrix<_udim, _xdim>>(T_+1, Matrix<_udim, _xdim>::Zero());
-        ks_ = std::vector<Vector<_udim>>(T_+1, Vector<_udim>::Zero());
+        constexpr double COST_RATIO_CONVG = 1e-4;
 
-        uhat_ = std::vector<Vector<_udim>>(T_, u_nominal);
-        xhat_ = std::vector<Vector<_xdim>>(T_+1, Vector<_xdim>::Zero());
+        Ks_ = std::vector<Matrix<_udim, _xdim>>(T+1, Matrix<_udim, _xdim>::Zero());
+        ks_ = std::vector<Vector<_udim>>(T+1, Vector<_udim>::Zero());
 
-        std::vector<Vector<_udim>> uhat_new (T_, Vector<_udim>::Zero());
-        std::vector<Vector<_xdim>> xhat_new(T_+1, Vector<_xdim>::Zero());
+        uhat_ = std::vector<Vector<_udim>>(T, u_nominal);
+        xhat_ = std::vector<Vector<_xdim>>(T+1, Vector<_xdim>::Zero());
+
+        std::vector<Vector<_udim>> uhat_new (T, Vector<_udim>::Zero());
+        std::vector<Vector<_xdim>> xhat_new(T+1, Vector<_xdim>::Zero());
 
         double old_cost = std::numeric_limits<double>::infinity();
         int iter = 0;
         for (iter = 0; iter < max_iters; ++iter)
         {
-            double new_cost = 0;
             // Line search as decribed in 
+            // http://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
             // https://studywolf.wordpress.com/2016/02/03/the-iterative-linear-quadratic-regulator-method/
+            
+            // Initial step-size
             double alpha = 1.0;
-            do
+
+            // The step-size adaptation paramter
+            constexpr double beta = 0.5; 
+            static_assert(beta > 0.0 && beta < 1.0, 
+                    "Step-size adaptation parameter should decrease the step-size");
+            
+            // Before we start line search, NaN makes sure termination conditions won't be met.
+            double new_cost = std::numeric_limits<double>::quiet_NaN();
+            double cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
+
+            while(!(new_cost < old_cost || cost_diff_ratio < COST_RATIO_CONVG))
             {
                 new_cost = forward_pass(x_init, xhat_new, uhat_new, alpha);
 
-                // If we fail to do better than before, then try to half the step size.
-                // It will stop halfing it when the ratio (change in cost-to-go) gets too small.
-                // That is, we have a step size for which we have converged. 
-                alpha *= 0.5;
-            } while(!(new_cost < old_cost 
-                    || std::abs((old_cost - new_cost) / new_cost) < 1e-4));
-            // Since we always half it at the end of the iteration, double it
-            alpha = 2.0*alpha;
+                cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
+
+                // Try decreasing the step-size by beta-times. 
+                alpha *= beta;
+            } 
 
             xhat_ = xhat_new;
             uhat_ = uhat_new;
 
-            const double cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
             if (verbose)
             {
+                // Since we always half it at the end of the iteration, double it
+                alpha = (1.0/beta)*alpha;
+
                 PRINT("[Iter " << iter << "]: Alpha: " << alpha << ", Cost ratio: " << cost_diff_ratio 
                         << ", New Cost: " << new_cost
                         << ", Old Cost: " << old_cost);
             }
 
-            if (cost_diff_ratio < 1e-4) 
+            if (cost_diff_ratio < COST_RATIO_CONVG) 
             {
                 break;
             }
@@ -139,7 +151,7 @@ public:
             Matrix<1, _xdim> Gt1; Gt1.setZero();
 
             // Backwards pass
-            for (int t = T_; t != -1; --t)
+            for (int t = T; t != -1; --t)
             {
                 Matrix<_xdim, _xdim> A; A.setZero();
                 Matrix<_xdim, _udim> B; B.setZero();
@@ -151,7 +163,7 @@ public:
                 Vector<_xdim> g_x; g_x.setZero();
                 Vector<_udim> g_u; g_u.setZero();
                 double c = 0;
-                if (t == T_)
+                if (t == T)
                 {
                     quadratize_cost(this->true_final_cost_, xhat_[t], Vector<_udim>::Zero(), 
                             Q, R, P, g_x, g_u, c);
@@ -167,9 +179,11 @@ public:
                 const Vector<_udim> kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
 
                 const Matrix<_xdim, _xdim> tmp = (A + B*Kt);
-                const Matrix<_xdim, _xdim> Vt = Q + 2.0*(P*Kt) + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
+                const Matrix<_xdim, _xdim> Vt = Q + 2.0*(P*Kt) 
+                    + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
 
-                const Matrix<1, _xdim> Gt = kt.transpose()*P.transpose() + kt.transpose()*R*Kt + g_x.transpose() 
+                const Matrix<1, _xdim> Gt = kt.transpose()*P.transpose() 
+                    + kt.transpose()*R*Kt + g_x.transpose() 
                     + g_u.transpose()*Kt + kt.transpose()*B.transpose()*Vt1*tmp + Gt1*tmp;
                 Vt1 = Vt;
                 Gt1 = Gt;
@@ -178,22 +192,27 @@ public:
             }
         }
 
-        SUCCESS("Converged after " << iter << " iterations.");
+        if (verbose)
+        {
+            SUCCESS("Converged after " << iter << " iterations.");
+        }
     }
 
-    // alpha = 1 is regular forward pass.
+    // :param alpha - Backtracking line search parameter. Setting to 1 gives regular forward pass.
     inline double forward_pass(const Vector<_xdim> x_init,  
                 std::vector<Vector<_xdim>> &states,
                 std::vector<Vector<_udim>> &controls,
                 double alpha
             ) const
     {
-        controls.resize(T_);
-        states.resize(T_+1);
+        const int T = timesteps();
+
+        controls.resize(T);
+        states.resize(T+1);
 
         states[0] = x_init;
         double cost_to_go = 0;
-        for (int t = 0; t < T_; ++t)
+        for (int t = 0; t < T; ++t)
         {
             controls[t] = compute_control_stepsize(states[t], t, alpha); 
 
@@ -204,15 +223,24 @@ public:
             const Vector<_xdim> xt1 = true_dynamics_(states[t], controls[t]);
             states[t+1] = xt1;
         }
-        const double final_cost = true_final_cost_(states[T_], Vector<_udim>::Zero());
+        const double final_cost = true_final_cost_(states[T], Vector<_udim>::Zero());
         cost_to_go += final_cost;
 
         return cost_to_go;
     }
 
-private:
-    int T_ = -1; // time horizon
+    // Returns how many timesteps we have computed control policies for.
+    int timesteps() const
+    { 
+        const size_t T = uhat_.size(); 
+        // Confirm that all the required parts the same size
+        IS_EQUAL(T+1, ks_.size());
+        IS_EQUAL(T+1, Ks_.size());
+        IS_EQUAL(T+1, xhat_.size());
+        return static_cast<int>(T); 
+    }
 
+private:
     DynamicsPtr<_xdim, _udim> *true_dynamics_; 
     CostPtr<_xdim, _udim> *true_cost_; 
     CostPtr<_xdim, _udim> *true_final_cost_; 

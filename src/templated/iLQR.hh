@@ -46,12 +46,12 @@ std::ostream& operator<<(std::ostream &os, const std::vector<Vector<_dim>> &vect
 }
 
 template<int _xdim, int _udim>
-class iLQR
+class iLQRSolver
 {
     static_assert(_xdim > 0, "State dimension should be greater than 0");
     static_assert(_udim > 0, "Control dimension should be greater than 0");
 public:
-    iLQR(const int T,
+    iLQRSolver(const int T,
          DynamicsPtr<_xdim,_udim> dynamics, 
          CostPtr<_xdim,_udim> final_cost,
          CostPtr<_xdim,_udim> cost

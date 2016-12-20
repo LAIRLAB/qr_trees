@@ -1,11 +1,13 @@
-//#include <test/test_ilqr_templated.hh>
+
 #include <templated/iLQR.hh>
 #include <templated/taylor_expansion.hh>
 
 #include <lqr/LQR.hh>
+#include <ilqr/iLQR.hh>
 
 #include <utils/debug_utils.hh>
 
+#include <ctime>
 #include <ostream>
 
 namespace
@@ -66,11 +68,31 @@ int main()
     Vector<udim> u_nominal; u_nominal.setOnes();
     Vector<xdim> x_init; x_init.setOnes();
 
-    ilqr::iLQR<xdim,udim> solver(T, dynamics, final_cost, cost);
-    solver.solve(x_init, u_nominal, true);
 
+    clock_t ilqr_begin_time = clock();
+    ilqr::iLQRSolver<xdim,udim> solver(T, dynamics, final_cost, cost);
+    solver.solve(x_init, u_nominal, true);
+    SUCCESS("iLQR Templated Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
+
+    clock_t lqr_begin_time = clock();
     lqr::LQR regular_lqr(A, B, Q, R, T);
     regular_lqr.solve();
+    SUCCESS("LQR Time: " << (clock() - lqr_begin_time) / (double) CLOCKS_PER_SEC);
+
+    std::vector<double> ilqr_dyn_costs;
+    std::vector<Eigen::VectorXd> ilqr_dyn_states; 
+    std::vector<Eigen::VectorXd> ilqr_dyn_controls;
+    clock_t ilqr_dyn_begin_time = clock();
+    ilqr::iLQR ilqr_dynamic(dynamics, cost, std::vector<Eigen::VectorXd>(T, x_init), 
+            std::vector<Eigen::VectorXd>(T, u_nominal));
+    // For fair timing, do 2 passes since templatized does that since it checks for convergence
+    ilqr_dynamic.backwards_pass();
+    ilqr_dynamic.forward_pass(ilqr_dyn_costs, ilqr_dyn_states, ilqr_dyn_controls, true);
+    ilqr_dynamic.backwards_pass();
+    ilqr_dynamic.forward_pass(ilqr_dyn_costs, ilqr_dyn_states, ilqr_dyn_controls, true);
+    const double ilqr_dyn_total_cost = std::accumulate(ilqr_dyn_costs.begin(), ilqr_dyn_costs.end(), 0.0);
+    SUCCESS("iLQR Dynamic Time: " << (clock() - ilqr_dyn_begin_time) / (double) CLOCKS_PER_SEC);
+    WARN("ilqr_dynamic cost: " << ilqr_dyn_total_cost);
 
     std::vector<double> lqr_costs;
     std::vector<Eigen::VectorXd> lqr_states; 

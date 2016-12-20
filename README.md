@@ -3,7 +3,6 @@ Hindsight Optimization using LQR
 
 ## Requirements
 - Eigen3
-- OpenMP
 - Python (python-dev)
 
 ## Quick Build Instructions:

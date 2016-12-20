@@ -27,8 +27,8 @@ set(EXTERNALS_DIR ${PROJECT_SOURCE_DIR}/externals)
 ############### Configuration  Generation ###############
 
 find_package(Eigen3 REQUIRED)
-find_package(Boost COMPONENTS random REQUIRED)
-find_package(OpenMP)
+#find_package(Boost COMPONENTS random REQUIRED)
+#find_package(OpenMP)
 
 if (CMAKE_BUILD_TYPE)
   string(TOUPPER ${CMAKE_BUILD_TYPE} _build_type)
@@ -70,10 +70,10 @@ endif (LINUX_BITNESS STREQUAL "")
 
 set(Extra_CXX_FLAGS "")
 
-if (OPENMP_FOUND)
-  set(Extra_CXX_FLAGS "${Extra_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -D_USE_OPENMP_")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-ENDIF(OPENMP_FOUND)
+#if (OPENMP_FOUND)
+#  set(Extra_CXX_FLAGS "${Extra_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -D_USE_OPENMP_")
+#  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+#ENDIF(OPENMP_FOUND)
 
 if (CMAKE_BUILD_TYPE STREQUAL "DEBUG")
   set(Extra_CXX_FLAGS "${Extra_CXX_FLAGS} -ggdb")

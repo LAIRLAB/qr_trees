@@ -6,14 +6,15 @@
 #include <sstream>
 
 // Macros and other utilties
-
-#define PRINT(x) std::cout << x << std::endl;
-#define DEBUG(x) std::cout << "\033[36m" << x << "\033[0m" << std::endl;
-#define ERROR(x) std::cout << "\033[31m" << x << "\033[0m" << std::endl;
-#define SUCCESS(x) std::cout << "\033[32m" << x << "\033[0m" << std::endl;
-#define WARN(x) std::cout << "\033[33m" << x << "\033[0m" << std::endl;
-
 #define FILE_LINE __FILE__ << ":" << __LINE__ << " in " << __func__  << "(): "
+#define FUNC_LINE "In " << __func__ << "(), L" << __LINE__ 
+
+#define PRINT(x) std::cout << "(" << FUNC_LINE << ") " << x << std::endl;
+#define DEBUG(x) std::cout << "\033[36m" << "(" << FUNC_LINE << ") " << x << "\033[0m" << std::endl;
+#define ERROR(x) std::cout << "\033[31m" << "(" << FUNC_LINE << ") " << x << "\033[0m" << std::endl;
+#define SUCCESS(x) std::cout << "\033[32m" << "(" << FUNC_LINE << ") " << x << "\033[0m" << std::endl;
+#define WARN(x) std::cout << "\033[33m" << "(" << FUNC_LINE << ") " << x << "\033[0m" << std::endl;
+
 
 
 #define IS_EQUAL(X,Y) {\

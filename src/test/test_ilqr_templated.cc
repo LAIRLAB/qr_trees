@@ -25,18 +25,18 @@ namespace
     Matrix<xdim, xdim> Q = 5*Matrix<xdim, xdim>::Identity();
     Matrix<udim, udim> R = 2*Matrix<udim, udim>::Identity();
 
-    Vector<xdim> linear_dynamics(const Vector<xdim> &x, const Vector<udim> &u)
+    inline Vector<xdim> linear_dynamics(const Vector<xdim> &x, const Vector<udim> &u)
     {
         return A*x + B*u;
     }
 
-    double quadratic_cost(const Vector<xdim> &x, const Vector<udim> &u)
+    inline double quadratic_cost(const Vector<xdim> &x, const Vector<udim> &u)
     {
         const Vector<1> c = 0.5*(x.transpose()*Q*x + u.transpose()*R*u);
         return c[0];
     }
 
-    double zero_cost(const Vector<xdim> &x, const Vector<udim> &u)
+    inline double zero_cost(const Vector<xdim> &x, const Vector<udim> &u)
     {
         return 0;
     }
@@ -66,8 +66,8 @@ int main()
     Vector<udim> u_nominal; u_nominal.setOnes();
     Vector<xdim> x_init; x_init.setOnes();
 
-    ilqr::iLQR<xdim,udim> solver(T, dynamics, final_cost, cost, u_nominal, x_init);
-    solver.solve(true);
+    ilqr::iLQR<xdim,udim> solver(T, dynamics, final_cost, cost);
+    solver.solve(x_init, u_nominal, true);
 
     lqr::LQR regular_lqr(A, B, Q, R, T);
     regular_lqr.solve();

@@ -54,33 +54,47 @@ public:
     iLQR(const int T,
          DynamicsPtr<_xdim,_udim> dynamics, 
          CostPtr<_xdim,_udim> final_cost,
-         CostPtr<_xdim,_udim> cost,
-         const Vector<_udim> u_nominal,
-         const Vector<_xdim> x_init)
+         CostPtr<_xdim,_udim> cost
+         )
     {
         T_ = T;
         this->true_dynamics_ = dynamics;
         this->true_cost_ = cost;
         this->true_final_cost_ = final_cost;
-        u_nominal_ = u_nominal;
-        x_init_ = x_init;
 
-        this->uhat = std::vector<Vector<_udim>>(T, u_nominal);
-        this->xhat = std::vector<Vector<_xdim>>(T, Vector<_xdim>::Zero());
+        this->uhat_ = std::vector<Vector<_udim>>(T, Vector<_udim>::Zero());
+        this->xhat_ = std::vector<Vector<_xdim>>(T, Vector<_xdim>::Zero());
 
         this->Ks_ = std::vector<Matrix<_udim, _xdim>>(T+1, Matrix<_udim, _xdim>::Zero());
         this->ks_ = std::vector<Vector<_udim>>(T+1, Vector<_udim>::Zero());
     }
 
-    void solve(bool verbose = false)
+    inline Vector<_udim> compute_control_stepsize(const Vector<_xdim> &xt, int t, double alpha) const
+    {
+        const Matrix<_udim, _xdim> &Kt = Ks_[t];
+        const Vector<_udim> &kt = ks_[t];
+
+        const Vector<_xdim> zt = (xt - xhat_[t]);
+        const Vector<_udim> vt = Kt * zt + alpha*kt;
+
+        return Vector<_udim>(vt + uhat_[t]);
+    }
+
+    // Computes the control at timestep t at xt.
+    inline Vector<_udim> compute_control(const Vector<_xdim> &xt, int t) const
+    {
+        return compute_control_stepsize(xt, t, 1.0);
+    }
+
+    inline void solve(const Vector<_xdim> x_init, const Vector<_udim> u_nominal, bool verbose = false)
     {
         const int max_iters = 30;
 
         Ks_ = std::vector<Matrix<_udim, _xdim>>(T_+1, Matrix<_udim, _xdim>::Zero());
         ks_ = std::vector<Vector<_udim>>(T_+1, Vector<_udim>::Zero());
 
-        uhat = std::vector<Vector<_udim>>(T_, u_nominal_);
-        xhat = std::vector<Vector<_xdim>>(T_+1, Vector<_xdim>::Zero());
+        uhat_ = std::vector<Vector<_udim>>(T_, u_nominal);
+        xhat_ = std::vector<Vector<_xdim>>(T_+1, Vector<_xdim>::Zero());
 
         std::vector<Vector<_udim>> uhat_new (T_, Vector<_udim>::Zero());
         std::vector<Vector<_xdim>> xhat_new(T_+1, Vector<_xdim>::Zero());
@@ -96,17 +110,10 @@ public:
             do
             {
                 new_cost = 0;
-                xhat_new[0] = x_init_;
+                xhat_new[0] = x_init;
                 for (int t = 0; t < T_; ++t)
                 {
-                    const Matrix<_udim, _xdim> &Kt = Ks_[t];
-                    const Vector<_udim> &kt = ks_[t];
-
-                    const Vector<_xdim> zt = (xhat_new[t] - xhat[t]);
-
-                    const Vector<_udim> vt = Kt * zt + alpha*kt;
-
-                    uhat_new[t] = vt + uhat[t];
+                    uhat_new[t] = compute_control_stepsize(xhat_new[t], t, alpha); 
 
                     const double cost = true_cost_(xhat_new[t], uhat_new[t]);
                     new_cost += cost;
@@ -125,8 +132,8 @@ public:
             // Since we always half it at the end of the iteration, double it
             alpha = 2.0*alpha;
 
-            xhat = xhat_new;
-            uhat = uhat_new;
+            xhat_ = xhat_new;
+            uhat_ = uhat_new;
 
             const double cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
             if (verbose)
@@ -151,7 +158,7 @@ public:
             {
                 Matrix<_xdim, _xdim> A; A.setZero();
                 Matrix<_xdim, _udim> B; B.setZero();
-                linearize_dynamics(this->true_dynamics_, xhat[t], uhat[t], A, B);
+                linearize_dynamics(this->true_dynamics_, xhat_[t], uhat_[t], A, B);
 
                 Matrix<_xdim,_xdim> Q; Q.setZero();
                 Matrix<_udim,_udim> R; R.setZero();
@@ -161,12 +168,12 @@ public:
                 double c = 0;
                 if (t == T_)
                 {
-                    quadratize_cost(this->true_final_cost_, xhat[t], Vector<_udim>::Zero(), 
+                    quadratize_cost(this->true_final_cost_, xhat_[t], Vector<_udim>::Zero(), 
                             Q, R, P, g_x, g_u, c);
                 }
                 else
                 {
-                    quadratize_cost(this->true_cost_, xhat[t], uhat[t], 
+                    quadratize_cost(this->true_cost_, xhat_[t], uhat_[t], 
                             Q, R, P, g_x, g_u, c);
                 }
 
@@ -197,16 +204,13 @@ private:
     CostPtr<_xdim, _udim> *true_cost_; 
     CostPtr<_xdim, _udim> *true_final_cost_; 
 
-    Vector<_udim> u_nominal_;
-    Vector<_xdim> x_init_;
-
     // Feedback control gains.
     std::vector<Matrix<_udim, _xdim>> Ks_;
     std::vector<Vector<_udim>> ks_;
 
     // Linearization points.
-    std::vector<Vector<_xdim>> xhat;
-    std::vector<Vector<_udim>> uhat;
+    std::vector<Vector<_xdim>> xhat_;
+    std::vector<Vector<_udim>> uhat_;
 
 };
 

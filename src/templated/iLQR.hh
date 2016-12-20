@@ -69,6 +69,8 @@ public:
         this->ks_ = std::vector<Vector<_udim>>(T+1, Vector<_udim>::Zero());
     }
 
+    // Computes the control at timestep t at xt.
+    // alpha = 1 is regular forward pass.
     inline Vector<_udim> compute_control_stepsize(const Vector<_xdim> &xt, int t, double alpha) const
     {
         const Matrix<_udim, _xdim> &Kt = Ks_[t];
@@ -80,13 +82,8 @@ public:
         return Vector<_udim>(vt + uhat_[t]);
     }
 
-    // Computes the control at timestep t at xt.
-    inline Vector<_udim> compute_control(const Vector<_xdim> &xt, int t) const
-    {
-        return compute_control_stepsize(xt, t, 1.0);
-    }
 
-    inline void solve(const Vector<_xdim> x_init, const Vector<_udim> u_nominal, bool verbose = false)
+    inline void solve(const Vector<_xdim> &x_init, const Vector<_udim> u_nominal, bool verbose = false)
     {
         const int max_iters = 30;
 
@@ -109,20 +106,8 @@ public:
             double alpha = 1.0;
             do
             {
-                new_cost = 0;
-                xhat_new[0] = x_init;
-                for (int t = 0; t < T_; ++t)
-                {
-                    uhat_new[t] = compute_control_stepsize(xhat_new[t], t, alpha); 
+                new_cost = forward_pass(x_init, xhat_new, uhat_new, alpha);
 
-                    const double cost = true_cost_(xhat_new[t], uhat_new[t]);
-                    new_cost += cost;
-
-                    // Roll forward the dynamics.
-                    const Vector<_xdim> xt1 = true_dynamics_(xhat_new[t], uhat_new[t]);
-                    xhat_new[t+1] = xt1;
-                }
-                new_cost += true_final_cost_(xhat_new[T_], Vector<_udim>::Zero());
                 // If we fail to do better than before, then try to half the step size.
                 // It will stop halfing it when the ratio (change in cost-to-go) gets too small.
                 // That is, we have a step size for which we have converged. 
@@ -196,6 +181,34 @@ public:
         SUCCESS("Converged after " << iter << " iterations.");
     }
 
+    // alpha = 1 is regular forward pass.
+    inline double forward_pass(const Vector<_xdim> x_init,  
+                std::vector<Vector<_xdim>> &states,
+                std::vector<Vector<_udim>> &controls,
+                double alpha
+            ) const
+    {
+        controls.resize(T_);
+        states.resize(T_+1);
+
+        states[0] = x_init;
+        double cost_to_go = 0;
+        for (int t = 0; t < T_; ++t)
+        {
+            controls[t] = compute_control_stepsize(states[t], t, alpha); 
+
+            const double cost = true_cost_(states[t], controls[t]);
+            cost_to_go += cost;
+
+            // Roll forward the dynamics.
+            const Vector<_xdim> xt1 = true_dynamics_(states[t], controls[t]);
+            states[t+1] = xt1;
+        }
+        const double final_cost = true_final_cost_(states[T_], Vector<_udim>::Zero());
+        cost_to_go += final_cost;
+
+        return cost_to_go;
+    }
 
 private:
     int T_ = -1; // time horizon

@@ -51,9 +51,12 @@ class iLQRSolver
     static_assert(_xdim > 0, "State dimension should be greater than 0");
     static_assert(_udim > 0, "Control dimension should be greater than 0");
 public:
-    iLQRSolver(DynamicsPtr<_xdim,_udim> dynamics, 
-         CostPtr<_xdim,_udim> final_cost,
-         CostPtr<_xdim,_udim> cost
+    using Dynamics = std::function<Vector<_xdim>(const Vector<_xdim> &x, const Vector<_udim> &u)>;
+    using Cost = std::function<double(const Vector<_xdim> &x, const Vector<_udim> &u)>;
+
+    iLQRSolver(const Dynamics &dynamics,
+         const Cost &final_cost,
+         const Cost &cost
          )
     {
         this->true_dynamics_ = dynamics;
@@ -244,9 +247,10 @@ public:
     }
 
 private:
-    DynamicsPtr<_xdim, _udim> *true_dynamics_; 
-    CostPtr<_xdim, _udim> *true_cost_; 
-    CostPtr<_xdim, _udim> *true_final_cost_; 
+    //DynamicsPtr<_xdim, _udim> *true_dynamics_; 
+    Dynamics true_dynamics_; 
+    Cost true_cost_; 
+    Cost true_final_cost_; 
 
     // Feedback control gains.
     std::vector<Matrix<_udim, _xdim>> Ks_;

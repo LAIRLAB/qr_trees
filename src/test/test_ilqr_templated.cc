@@ -77,6 +77,7 @@ void test_ilqr_vs_lqr(const int T)
 
     double mu = 0.0;
     clock_t ilqr_begin_time = clock();
+
     ilqr::iLQRSolver<xdim,udim> solver(dynamics, final_cost, cost);
     solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
     std::vector<Vector<xdim>> ilqr_temp_states; 

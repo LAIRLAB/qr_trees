@@ -8,6 +8,19 @@ namespace simulators
 namespace pendulum
 {
 
+using namespace std::placeholders;
+
+Pendulum::Pendulum(const double dt, const double damping_coeff, const double length)
+    : dt_(dt), damping_coeff_(damping_coeff), length_(length)
+{
+}
+
+Vector<STATE_DIM> Pendulum::operator()(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u)
+{
+    const auto dyn = std::bind(continuous_dynamics, _1, _2, length_, damping_coeff_);
+    return simulators::RK4<STATE_DIM,CONTROL_DIM>::rk4(dt_, x, u, dyn);
+}
+
 ilqr::DynamicsFunc make_discrete_dynamics_func(const double dt, const double length, const double damping_coeff)
 {
     const auto params_bound_dyn 
@@ -22,17 +35,15 @@ ilqr::DynamicsFunc make_discrete_dynamics_func(const double dt, const double len
         };
 }
 
-Eigen::VectorXd continuous_dynamics(const Eigen::VectorXd& state, const Eigen::VectorXd& control, 
+Vector<STATE_DIM> continuous_dynamics(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u, 
                                     const double length, const double damping_coeff) 
 {
-  IS_EQUAL(state.size(), 2); 
-  IS_EQUAL(control.size(), 1); 
-  Eigen::VectorXd velocities(state.size());
+  Vector<STATE_DIM> x_dot;
 
-  velocities[0] = state[1];
-  velocities[1] = -9.81*std::sin(state[0])/length - damping_coeff*state[1] + control[0];
+  x_dot[THETA] = x[THETADOT];
+  x_dot[THETADOT] = -9.81*std::sin(x[THETA])/length - damping_coeff*x[THETADOT] + u[TORQUE];
 
-  return velocities;
+  return x_dot;
 }
 
 } // namespace pendulum

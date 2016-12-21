@@ -13,12 +13,6 @@ using Matrix = Eigen::Matrix<double, _rows, _cols>;
 template<int _rows>
 using Vector = Eigen::Matrix<double, _rows, 1>;
 
-template<int _xdim, int _udim>
-using DynamicsPtr = Vector<_xdim>(const Vector<_xdim>&x, const Vector<_udim>&u);
-
-template<int _xdim, int _udim>
-using CostPtr = double(const Vector<_xdim> &x, const Vector<_udim>&u);
-
 template<int _xdim, int _udim, typename DynamicsFunc>
 void linearize_dynamics(const DynamicsFunc &dynamics_func, 
                         const Vector<_xdim> &x, 

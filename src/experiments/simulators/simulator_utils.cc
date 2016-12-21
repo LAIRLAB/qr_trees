@@ -4,14 +4,15 @@
 namespace 
 {
 
-  // This cannot be changed
-  constexpr double RK4_INTEGRATION_CONSTANT = 1.0/6.0;
   // 4th order Runge-Kutta integration of an ODE given by dynamics.
   Eigen::VectorXd rk4(const double dt,
                       const Eigen::VectorXd& state, 
                       const Eigen::VectorXd& control,
                       const ilqr::DynamicsFunc &dynamics) 
   {
+
+  // This cannot be changed
+  constexpr double RK4_INTEGRATION_CONSTANT = 1.0/6.0;
 
   // Formula from: http://mathworld.wolfram.com/Runge-KuttaMethod.html 
   const Eigen::VectorXd& k1 = dynamics(state, control);

@@ -8,6 +8,7 @@
 #include <utils/debug_utils.hh>
 
 #include <ctime>
+#include <numeric>
 #include <ostream>
 
 namespace

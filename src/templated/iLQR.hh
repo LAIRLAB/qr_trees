@@ -23,12 +23,7 @@ namespace ilqr
 //
 //template<int _rows>
 //using Vector = Eigen::Matrix<double, _rows, 1>;
-//
-//template<int _xdim, int _udim>
-//using DynamicsPtr = Vector<_xdim>(Vector<_xdim>, Vector<_udim>);
-//
-//template<int _xdim, int _udim>
-//using CostPtr = double(Vector<_xdim>, Vector<_udim>);
+
 
 template<int _dim>
 std::ostream& operator<<(std::ostream &os, const std::vector<Vector<_dim>> &vectors)
@@ -83,13 +78,13 @@ public:
     //      the default behavior. The damping makes the state-space steps smaller over
     //      iterations. 
     inline void solve(const int T, const Vector<_xdim> &x_init, const Vector<_udim> u_nominal, 
-            double mu = 0, const int max_iters = 1000, bool verbose = false)
+            double mu = 0, const int max_iters = 1000, bool verbose = false, const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0)
     {
         IS_GREATER(T, 0);
         IS_GREATER_EQUAL(mu, 0);
         IS_GREATER(max_iters, 0);
-
-        constexpr double COST_RATIO_CONVG = 1e-4;
+        IS_GREATER(cost_convg_ratio, 0);
+        IS_GREATER(start_alpha, 0);
 
         Ks_ = std::vector<Matrix<_udim, _xdim>>(T+1, Matrix<_udim, _xdim>::Zero());
         ks_ = std::vector<Vector<_udim>>(T+1, Vector<_udim>::Zero());
@@ -112,7 +107,7 @@ public:
             // https://studywolf.wordpress.com/2016/02/03/the-iterative-linear-quadratic-regulator-method/
             
             // Initial step-size
-            double alpha = 1.0;
+            double alpha = start_alpha;
 
             // The step-size adaptation paramter
             constexpr double beta = 0.5; 
@@ -123,7 +118,7 @@ public:
             double new_cost = std::numeric_limits<double>::quiet_NaN();
             double cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
 
-            while(!(new_cost < old_cost || cost_diff_ratio < COST_RATIO_CONVG))
+            while(!(new_cost < old_cost || cost_diff_ratio < cost_convg_ratio))
             {
                 new_cost = forward_pass(x_init, xhat_new, uhat_new, alpha);
 
@@ -146,7 +141,7 @@ public:
                         << ", Old Cost: " << old_cost);
             }
 
-            if (cost_diff_ratio < COST_RATIO_CONVG) 
+            if (cost_diff_ratio < cost_convg_ratio) 
             {
                 break;
             }

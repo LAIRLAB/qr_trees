@@ -1,3 +1,5 @@
+#pragma once
+
 #include <utils/debug_utils.hh>
 
 #include <Eigen/Eigenvalues>

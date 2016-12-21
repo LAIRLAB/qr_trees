@@ -4,6 +4,8 @@
 #include <utils/math_utils.hh>
 #include <utils/multivariate_gaussian.hh>
 
+#include <array>
+
 namespace
 {
 

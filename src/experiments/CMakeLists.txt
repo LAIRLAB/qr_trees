@@ -9,3 +9,6 @@ add_executable(single_obs_circle_world single_obs_circle_world.cc)
 target_link_libraries(single_obs_circle_world
     ilqr_tree ilqr utils simulators helpers policies)
 
+# Templatized ilQR versions
+add_executable(ilqr_templated_pendulum ilqr_templated_pendulum.cc)
+target_link_libraries(ilqr_templated_pendulum simulators)

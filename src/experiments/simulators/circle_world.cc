@@ -87,7 +87,9 @@ std::ostream& operator<<(std::ostream& os, const Circle& o)
     constexpr char DELIMITER[] = " ";
     const double x = o.position()[0];
     const double y = o.position()[1];
-    os << std::setw(PRINT_WIDTH) << x << DELIMITER << std::setw(PRINT_WIDTH) << y << std::setw(PRINT_WIDTH) << o.radius();
+    os << std::left << std::setw(PRINT_WIDTH) << x << DELIMITER 
+       << std::left << std::setw(PRINT_WIDTH) << y 
+       << std::left << std::setw(PRINT_WIDTH) << o.radius();
     return os;
 }
 
@@ -97,7 +99,7 @@ std::ostream& operator<<(std::ostream& os, const CircleWorld& world)
     const std::array<double, 4> dimensions = world.dimensions();
     for (const double dim : dimensions)
     {
-        os << std::setw(PRINT_WIDTH) << dim;
+        os << std::left << std::setw(PRINT_WIDTH) << dim;
     }
     os << std::endl;
 

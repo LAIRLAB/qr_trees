@@ -38,7 +38,7 @@ double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u)
 double cT(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u)
 {
     const Vector<STATE_DIM> dx = x - xT;
-    return 0.5*(dx.transpose()*Q*dx)[0];
+    return 0.5*(dx.transpose()*QT*dx)[0];
 }
 
 } // namespace

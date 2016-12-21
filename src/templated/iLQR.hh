@@ -148,11 +148,15 @@ public:
 
             old_cost = new_cost;
 
-            Matrix<_xdim, _xdim> Vt1; Vt1.setZero();
-            Matrix<1, _xdim> Gt1; Gt1.setZero();
+            Matrix<_xdim,_xdim> QT; Matrix<_udim,_udim> RT;
+            Matrix<_xdim,_udim> PT; Vector<_xdim> g_xT; Vector<_udim> g_uT;
+            quadratize_cost(this->true_final_cost_, xhat_[T], Vector<_udim>::Zero(), 
+                    QT, RT, PT, g_xT, g_uT);
+            Matrix<_xdim, _xdim> Vt1 = QT;
+            Matrix<1, _xdim> Gt1 = g_xT.transpose();
 
             // Backwards pass
-            for (int t = T; t != -1; --t)
+            for (int t = T-1; t != -1; --t)
             {
                 Matrix<_xdim, _xdim> A; 
                 Matrix<_xdim, _udim> B;
@@ -163,16 +167,15 @@ public:
                 Matrix<_xdim,_udim> P;
                 Vector<_xdim> g_x;
                 Vector<_udim> g_u;
-                double c = 0;
                 if (t == T)
                 {
                     quadratize_cost(this->true_final_cost_, xhat_[t], Vector<_udim>::Zero(), 
-                            Q, R, P, g_x, g_u, c);
+                            Q, R, P, g_x, g_u);
                 }
                 else
                 {
                     quadratize_cost(this->true_cost_, xhat_[t], uhat_[t], 
-                            Q, R, P, g_x, g_u, c);
+                            Q, R, P, g_x, g_u);
                 }
 
                 const Matrix<_udim, _udim> inv_term = -1.0*(R + B.transpose()*(Vt1+LM)*B).inverse();

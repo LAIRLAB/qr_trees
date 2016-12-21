@@ -46,8 +46,7 @@ void quadratize_cost(const CostFunc &cost_func,
                      Matrix<_udim,_udim> &R,
                      Matrix<_xdim,_udim> &P,
                      Vector<_xdim> &g_x,
-                     Vector<_udim> &g_u,
-                     double &c
+                     Vector<_udim> &g_u
                      )
 {
     const auto helper = [&cost_func](const Vector<_xdim+_udim> &xu) -> double
@@ -80,8 +79,6 @@ void quadratize_cost(const CostFunc &cost_func,
     P = H.topRightCorner(_xdim, _udim);
     R = H.bottomRightCorner(_udim, _udim);
 
-    c = helper(xu);
-    
     Q = (Q + Q.transpose())/2.0;
     Q = math::project_to_psd(Q, 1e-11);
     math::check_psd(Q, 1e-12);

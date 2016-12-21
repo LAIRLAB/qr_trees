@@ -12,3 +12,6 @@ target_link_libraries(single_obs_circle_world
 # Templatized ilQR versions
 add_executable(ilqr_templated_pendulum ilqr_templated_pendulum.cc)
 target_link_libraries(ilqr_templated_pendulum simulators)
+
+add_executable(ilqr_templated_diffdrive ilqr_templated_diffdrive.cc)
+target_link_libraries(ilqr_templated_diffdrive simulators)

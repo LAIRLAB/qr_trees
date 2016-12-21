@@ -16,6 +16,9 @@
 namespace 
 {
 
+using CircleWorld = circle_world::CircleWorld;
+using Circle = circle_world::Circle;
+
 enum class PolicyTypes
 {
     // Compute an iLQR policy from a tree that splits only at the first timestep.
@@ -28,6 +31,7 @@ enum class PolicyTypes
     // Compute iLQR chain for each probabilistic split and take a weighted average of the controls.
     PROB_WEIGHTED_CONTROL,
 };
+
 
 std::string to_string(const PolicyTypes policy_type)
 {

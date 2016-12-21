@@ -64,7 +64,7 @@ void control_pendulum(const int T, const double dt, const Vector<STATE_DIM> &x0 
 
     QT = 3.*Matrix<STATE_DIM,STATE_DIM>::Identity();
 
-    R = 1e-1*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
+    R = 1e-2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
     // Initial linearization points are linearly interpolated states and zero
     // control.
@@ -87,7 +87,7 @@ void control_pendulum(const int T, const double dt, const Vector<STATE_DIM> &x0 
     std::vector<Vector<STATE_DIM>> ilqr_states; 
     std::vector<Vector<CONTROL_DIM>> ilqr_controls;
     const double ilqr_total_cost = solver.forward_pass(x0, ilqr_states, ilqr_controls, 1.0);
-    SUCCESS("iLQR Templated (mu=" << mu << ") Time: " 
+    SUCCESS("iLQR (mu=" << mu << ") Time: " 
             << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
             << "\nTotal Cost: " << ilqr_total_cost);
 

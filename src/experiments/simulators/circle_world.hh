@@ -6,7 +6,13 @@
 
 #include <Eigen/Dense>
 
+#include <array>
 #include <vector>
+
+namespace circle_world 
+{
+
+constexpr int OBSTACLE_DIM = 2;
 
 class Circle
 {
@@ -36,8 +42,13 @@ private:
 class CircleWorld
 {
 public:
+    // Set the world boundary constraints to the default.
     CircleWorld() = default;
 
+    // Set the world boundary constraints.
+    CircleWorld(double min_x, double max_x, double min_y, double max_y); 
+
+    void add_obstacle(const double radius, double x, double y);
     void add_obstacle(const double radius, const Eigen::Vector2d& position);
     void add_obstacle(const Circle &obstacle);
 
@@ -49,8 +60,24 @@ public:
 
     const std::vector<Circle> &obstacles() const { return obstacles_; }
     std::vector<Circle> &obstacles() { return obstacles_; }
+    
+    std::array<double, 4> dimensions() const { return {min_x_, max_x_, min_y_, max_y_}; }
 
 private:
     std::vector<Circle> obstacles_;
 
+    double min_x_ = -20;
+    double max_x_ = 20;
+    double min_y_ = -20;
+    double max_y_ = 20;
 };
+
+std::ostream& operator<<(std::ostream& os, const Circle& o);
+
+// First line is the dimensions of the world.
+// Following lines are posx posy radius) for each Circle obstacle.
+// Everything is set at 13 character width for each entry.
+std::ostream& operator<<(std::ostream& os, const CircleWorld& world);
+
+} // namespace circle_world 
+

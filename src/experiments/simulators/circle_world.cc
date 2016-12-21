@@ -1,6 +1,19 @@
 
 #include <experiments/simulators/circle_world.hh>
 
+#include <utils/debug_utils.hh>
+
+#include <iomanip>
+#include <ostream>
+
+namespace
+{
+    constexpr int PRINT_WIDTH = 13;
+}
+
+namespace circle_world
+{
+
 Circle::Circle(const double radius, const double x, double y)
     : radius_(radius)
 {
@@ -27,14 +40,32 @@ double Circle::centroid_distance(const Circle &other) const
 }
 
 
+CircleWorld::CircleWorld(double min_x, double max_x, double min_y, double max_y)
+    : min_x_(min_x), max_x_(max_x), min_y_(min_y), max_y_(max_y)
+{
+    IS_GREATER(max_x, min_x);
+    IS_GREATER(max_y, min_y);
+}
+
+void CircleWorld::add_obstacle(const double radius, double x, double y)
+{
+    // Confirm at least part of the circle is within bounds.
+    IS_GREATER_EQUAL(x, min_x_);
+    IS_LESS_EQUAL(x, max_x_);
+    IS_GREATER_EQUAL(y, min_y_);
+    IS_LESS_EQUAL(y, max_y_);
+
+    obstacles_.emplace_back(radius, x, y);
+}
+
 void CircleWorld::add_obstacle(const double radius, const Eigen::Vector2d& position)
 {
-    obstacles_.emplace_back(radius, position);
+    add_obstacle(radius, position[0], position[1]);
 }
 
 void CircleWorld::add_obstacle(const Circle &obstacle)
 {
-    obstacles_.push_back(obstacle);
+    add_obstacle(obstacle.radius(), obstacle.position()[0], obstacle.position()[1]);
 }
 
 bool CircleWorld::distances(const Circle& circle, std::vector<double> &distances) const
@@ -50,3 +81,32 @@ bool CircleWorld::distances(const Circle& circle, std::vector<double> &distances
     }
     return any_intersect;
 }
+
+std::ostream& operator<<(std::ostream& os, const Circle& o) 
+{
+    constexpr char DELIMITER[] = " ";
+    const double x = o.position()[0];
+    const double y = o.position()[1];
+    os << std::setw(PRINT_WIDTH) << x << DELIMITER << std::setw(PRINT_WIDTH) << y << std::setw(PRINT_WIDTH) << o.radius();
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const CircleWorld& world) 
+{
+    const std::vector<Circle>& obstacles = world.obstacles();
+    const std::array<double, 4> dimensions = world.dimensions();
+    for (const double dim : dimensions)
+    {
+        os << std::setw(PRINT_WIDTH) << dim;
+    }
+    os << std::endl;
+
+    for (const Circle &obs : obstacles)
+    {
+        os << obs << std::endl;
+    }
+    return os;
+}
+
+} // namespace circle_world 
+

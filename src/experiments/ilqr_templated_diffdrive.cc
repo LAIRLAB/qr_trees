@@ -133,8 +133,8 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     CircleWorld world(-30, 30, -30, 30);
     Eigen::Vector2d obstacle_pos(0, 0.0);
-	constexpr double obs_radius = 5.0;
-    world.add_obstacle(obs_radius, obstacle_pos);
+	//constexpr double obs_radius = 5.0;
+    //world.add_obstacle(obs_radius, obstacle_pos);
 
     //world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
     //world.add_obstacle(obs_radius, Eigen::Vector2d(-10, 3));
@@ -142,12 +142,12 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 	xT = Vector<STATE_DIM>::Zero();
 	xT[State::POS_X] = 0;
 	xT[State::POS_Y] = 25;
-	xT[State::THETA] = M_PI; 
+	xT[State::THETA] = M_PI/2; 
 
 	x0 = Vector<STATE_DIM>::Zero();
 	x0[State::POS_X] = 0;
 	x0[State::POS_Y] = -25;
-	x0[State::THETA] = M_PI;
+	x0[State::THETA] = M_PI/2;
 
 	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
 	const double rot_cost = 0.5;
@@ -160,8 +160,8 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     // Initial linearization points are linearly interpolated states and zero
     // control.
-    u_nominal[0] = 2.5;
-    u_nominal[1] = 2.5;
+    u_nominal[0] = 1.5;
+    u_nominal[1] = 1.5;
 
     std::array<double, 2> control_lims = {{-5, 5}};
 

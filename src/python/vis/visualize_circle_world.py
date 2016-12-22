@@ -24,7 +24,7 @@ def draw_env(ax, start_pos, end_pos, robot_radius, obs_poses, obs_radii):
     draw_circle(ax, start_pos, robot_radius, color=(0,1,0))
     draw_circle(ax, end_pos, robot_radius, color=(1,0,0))
 
-    for i in xrange(len(obs_radii)):
+    for i in xrange(obs_radii.size):
         obs_radius = obs_radii[i]
         obs_pos = obs_poses[i]
         ax.add_artist(plt.Circle(obs_pos, obs_radius, color=(0.1,0.1,0.1)))
@@ -54,14 +54,13 @@ if __name__ == "__main__":
     start_pos = states[0,:]
     end_pos = states[1,:]
     states = states[2:,:]
-    print start_pos
 
     world_dim = np.genfromtxt(obstacles_file, delimiter=[13,13,13,13], max_rows = 1);
 
     obstacles = np.genfromtxt(obstacles_file, delimiter=[13,13,13], skip_header = 1);
     obstacles = np.atleast_2d(obstacles)
-    obs_poses = obstacles[:,:3]
-    obs_radii = obstacles[:,-1]
+    obs_poses = obstacles[:,:2]
+    obs_radii = obstacles[:,2:]
 
     plt.figure(figsize=(10, 8))
     ax = plt.gca()

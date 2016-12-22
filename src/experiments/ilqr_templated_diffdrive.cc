@@ -28,8 +28,8 @@ template <int rows, int cols>
 using Matrix = Eigen::Matrix<double, rows, cols>;
 
 double robot_radius = 3.35/2.0; // iRobot create;
-double obstacle_factor = 10.0;
-double scale_factor = 1e-1;
+double obstacle_factor = 1.0;
+double scale_factor = 3e0;
 
 Matrix<STATE_DIM, STATE_DIM> Q;
 Matrix<STATE_DIM, STATE_DIM> QT; // Quadratic state cost for final timestep.
@@ -40,33 +40,26 @@ Vector<CONTROL_DIM> u_nominal;
 
 int T;
 
-double boundary_cost(const CircleWorld &world, const double robot_radius, const Vector<STATE_DIM> &xt)
+double obstacle_cost(const CircleWorld &world, const double robot_radius, const Vector<STATE_DIM> &xt)
 {
     Eigen::Vector2d robot_pos;
     robot_pos << xt[State::POS_X], xt[State::POS_Y];
 
     // Compute minimum distance to the edges of the world.
-    const auto dims = world.dimensions();
-    Eigen::Vector2d top_right, bottom_left; 
-    top_right << dims[1], dims[3];
-    bottom_left << dims[0], dims[2];
     double cost = 0;
-	for (int i = 0; i < 2; ++i) 
-    {
-		const double dist = (top_right[i] - robot_pos[i]) - robot_radius;
-		cost += obstacle_factor * std::exp(-scale_factor*dist);
-	}
-	for (int i = 0; i < 2; ++i) 
-    {
-		const double dist = (bottom_left[i] - robot_pos[i]) - robot_radius;
-		cost += obstacle_factor * std::exp(-scale_factor*dist);
+
+    auto obstacles = world.obstacles();
+	for (size_t i = 0; i < obstacles.size(); ++i) {
+		Vector<2> d = robot_pos - obstacles[i].position();
+		double distr = d.norm(); 
+		double dist = distr - robot_radius - obstacles[i].radius();
+		cost += obstacle_factor * exp(-scale_factor*dist);
 	}
     return cost;
 }
 
 double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t, const CircleWorld &world)
 {
-    const Vector<CONTROL_DIM> du = u - u_nominal;
     double cost = 0;
 
     // position
@@ -75,14 +68,12 @@ double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t,
         Vector<STATE_DIM> dx = x - x0;
         cost += 0.5*(dx.transpose()*Q*dx)[0];
     }
-    //Vector<STATE_DIM> dx = x - xT;
-    //cost += t/static_cast<double>(T) * 0.5*(dx.transpose()*Q*dx)[0];
 
     // Control cost
+    const Vector<CONTROL_DIM> du = u - u_nominal;
     cost += 0.5*(du.transpose()*R*du)[0];
 
-    // Boundary of world
-    cost += 0.*boundary_cost(world, robot_radius, x);
+    cost += 1.0*obstacle_cost(world, robot_radius, x);
 
     return cost;
 }
@@ -141,9 +132,12 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     IS_GREATER(dt, 0);
 
     CircleWorld world(-30, 30, -30, 30);
-    Eigen::Vector2d obstacle_pos(0, -13.5);
-	constexpr double obs_radius = 2.0;
+    Eigen::Vector2d obstacle_pos(-5, 2.5);
+	constexpr double obs_radius = 4.0;
     world.add_obstacle(obs_radius, obstacle_pos);
+
+    world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
+    world.add_obstacle(obs_radius, Eigen::Vector2d(-10, 3));
 
 	xT = Vector<STATE_DIM>::Zero();
 	xT[State::POS_X] = 0;
@@ -156,11 +150,11 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 	x0[State::THETA] = M_PI;
 
 	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
-	const double rot_cost = 0.4;
+	const double rot_cost = 0.1;
     Q(State::THETA, State::THETA) = rot_cost;
 
     QT = 10*Matrix<STATE_DIM,STATE_DIM>::Identity();
-    QT(State::THETA, State::THETA) = rot_cost;
+    QT(State::THETA, State::THETA) = 5.0;
 
 	R = 1*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
@@ -169,7 +163,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     u_nominal[0] = 2.5;
     u_nominal[1] = 2.5;
 
-    std::array<double, 2> control_lims = {-5, 5};
+    std::array<double, 2> control_lims = {{-5, 5}};
 
     simulators::diffdrive::DiffDrive system(dt, control_lims, world.dimensions());
     auto cost_t = std::bind(ct, _1, _2, _3, world);
@@ -178,7 +172,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     constexpr bool verbose = true;
     constexpr int max_iters = 300;
-    constexpr double mu = 0.05;
+    constexpr double mu = 0.80;
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 1;
 

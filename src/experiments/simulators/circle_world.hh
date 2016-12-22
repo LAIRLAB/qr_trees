@@ -61,7 +61,7 @@ public:
     const std::vector<Circle> &obstacles() const { return obstacles_; }
     std::vector<Circle> &obstacles() { return obstacles_; }
     
-    std::array<double, 4> dimensions() const { return {min_x_, max_x_, min_y_, max_y_}; }
+    std::array<double, 4> dimensions() const { return {{min_x_, max_x_, min_y_, max_y_}}; }
 
 private:
     std::vector<Circle> obstacles_;

@@ -36,13 +36,18 @@ namespace
         return A*x + B*u;
     }
 
-    inline double quadratic_cost(const Vector<xdim> &x, const Vector<udim> &u)
+    inline double quadratic_cost_time(const Vector<xdim> &x, const Vector<udim> &u, const int t)
     {
         const Vector<1> c = 0.5*(x.transpose()*Q*x + u.transpose()*R*u);
         return c[0];
     }
 
-    inline double zero_cost(const Vector<xdim> &x, const Vector<udim> &u)
+    inline double quadratic_cost(const Vector<xdim> &x, const Vector<udim> &u)
+    {
+        return quadratic_cost_time(x, u, 0);
+    }
+
+    inline double zero_cost(const Vector<xdim> &x)
     {
         return 0;
     }
@@ -67,7 +72,6 @@ void test_ilqr_vs_lqr(const int T)
     DEBUG("Testing T=" << T);
 
     const auto dynamics = linear_dynamics;
-    const auto cost = quadratic_cost;
     const auto final_cost = zero_cost;
     Vector<udim> u_nominal; u_nominal.setOnes();
     Vector<xdim> x_init; x_init.setOnes();
@@ -79,7 +83,7 @@ void test_ilqr_vs_lqr(const int T)
     double mu = 0.0;
     clock_t ilqr_begin_time = clock();
 
-    ilqr::iLQRSolver<xdim,udim> solver(dynamics, final_cost, cost);
+    ilqr::iLQRSolver<xdim,udim> solver(dynamics, final_cost, quadratic_cost_time);
     solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
     std::vector<Vector<xdim>> ilqr_temp_states; 
     std::vector<Vector<udim>> ilqr_temp_controls;
@@ -115,7 +119,7 @@ void test_ilqr_vs_lqr(const int T)
     std::vector<Eigen::VectorXd> ilqr_dyn_states; 
     std::vector<Eigen::VectorXd> ilqr_dyn_controls;
     clock_t ilqr_dyn_begin_time = clock();
-    ilqr::iLQR ilqr_dynamic(dynamics, cost, std::vector<Eigen::VectorXd>(T, x_init), 
+    ilqr::iLQR ilqr_dynamic(dynamics, quadratic_cost, std::vector<Eigen::VectorXd>(T, x_init), 
             std::vector<Eigen::VectorXd>(T, u_nominal));
     // For fair timing, do 2 passes since templatized does that since it checks for convergence
     ilqr_dynamic.backwards_pass();

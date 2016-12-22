@@ -19,7 +19,7 @@ using Circle = circle_world::Circle;
 using State = simulators::diffdrive::State;
 constexpr int STATE_DIM = simulators::diffdrive::STATE_DIM;
 constexpr int CONTROL_DIM = simulators::diffdrive::CONTROL_DIM;
-constexpr int OBS_DIM = circle_world::OBSTACLE_DIM;
+//constexpr int OBS_DIM = circle_world::OBSTACLE_DIM;
 
 template <int rows>
 using Vector = Eigen::Matrix<double, rows, 1>;
@@ -37,6 +37,8 @@ Matrix<CONTROL_DIM, CONTROL_DIM> R;
 Vector<STATE_DIM> xT; // Goal state for final timestep.
 Vector<STATE_DIM> x0; // Start state for 0th timestep.
 Vector<CONTROL_DIM> u_nominal; 
+
+int T;
 
 double boundary_cost(const CircleWorld &world, const double robot_radius, const Vector<STATE_DIM> &xt)
 {
@@ -62,20 +64,31 @@ double boundary_cost(const CircleWorld &world, const double robot_radius, const 
     return cost;
 }
 
-double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const CircleWorld &world)
+double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t, const CircleWorld &world)
 {
-    const Vector<STATE_DIM> dx = x - xT;
     const Vector<CONTROL_DIM> du = u - u_nominal;
-    const double position = 0.5*(dx.transpose()*Q*dx)[0];
-    const double control = 0.5*(du.transpose()*R*du)[0];
-    const double boundary = 0.*boundary_cost(world, robot_radius, x);
+    double cost = 0;
 
-    const double cost = position + control + boundary;
+    // position
+    if (t == 0)
+    {
+        Vector<STATE_DIM> dx = x - x0;
+        cost += 0.5*(dx.transpose()*Q*dx)[0];
+    }
+    //Vector<STATE_DIM> dx = x - xT;
+    //cost += t/static_cast<double>(T) * 0.5*(dx.transpose()*Q*dx)[0];
+
+    // Control cost
+    cost += 0.5*(du.transpose()*R*du)[0];
+
+    // Boundary of world
+    cost += 0.*boundary_cost(world, robot_radius, x);
+
     return cost;
 }
 
 // Final timestep cost function
-double cT(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u)
+double cT(const Vector<STATE_DIM> &x)
 {
     const Vector<STATE_DIM> dx = x - xT;
     return 0.5*(dx.transpose()*QT*dx)[0];
@@ -85,12 +98,12 @@ void states_to_file(const Vector<STATE_DIM>& x0, const Vector<STATE_DIM>& xT,
         const std::vector<Vector<STATE_DIM>> &states, 
         const std::string &fname)
 {
-    constexpr int PRINT_WIDTH = 13;
-    constexpr char DELIMITER[] = " ";
-
     std::ofstream file(fname, std::ofstream::trunc | std::ofstream::out);
     auto print_vector = [&file](const Vector<STATE_DIM> &x)
     {
+        constexpr int PRINT_WIDTH = 13;
+        constexpr char DELIMITER[] = " ";
+
         for (int i = 0; i < STATE_DIM; ++i)
         {
             file << std::left << std::setw(PRINT_WIDTH) << x[i] << DELIMITER;
@@ -122,7 +135,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 {
     using namespace std::placeholders;
 
-	const int T = 150;
+    T = 150;
 	const double dt = 1.0/6.0;
     IS_GREATER(T, 1);
     IS_GREATER(dt, 0);
@@ -142,29 +155,30 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 	x0[State::POS_Y] = -25;
 	x0[State::THETA] = M_PI;
 
-	Q = 1e-3*Matrix<STATE_DIM,STATE_DIM>::Identity();
-	const double rot_cost = 0.1;
+	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
+	const double rot_cost = 0.4;
     Q(State::THETA, State::THETA) = rot_cost;
 
     QT = 10*Matrix<STATE_DIM,STATE_DIM>::Identity();
+    QT(State::THETA, State::THETA) = rot_cost;
 
-	R = 1e-1*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
+	R = 1*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
     // Initial linearization points are linearly interpolated states and zero
     // control.
     u_nominal[0] = 2.5;
-    u_nominal[1] = 1.5;
+    u_nominal[1] = 2.5;
 
     std::array<double, 2> control_lims = {-5, 5};
 
     simulators::diffdrive::DiffDrive system(dt, control_lims, world.dimensions());
-    std::function<double(const Vector<STATE_DIM>&, const Vector<CONTROL_DIM>&)> cost_t = std::bind(ct, _1, _2, world);
+    auto cost_t = std::bind(ct, _1, _2, _3, world);
 
     auto dynamics = system;
 
     constexpr bool verbose = true;
     constexpr int max_iters = 300;
-    constexpr double mu = 0.00;
+    constexpr double mu = 0.05;
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 1;
 
@@ -194,14 +208,14 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
         IS_TRUE(math::is_equal(ilqr_controls[t], ut, TOL));
 
-        rollout_cost += cost_t(xt, ut);
+        rollout_cost += cost_t(xt, ut, t);
 
         const Vector<STATE_DIM> xt1 = dynamics(xt, ut);
 
         xt = xt1;
         states.push_back(xt);
     }
-    rollout_cost += cT(xt, Vector<CONTROL_DIM>::Zero());
+    rollout_cost += cT(xt);
     DEBUG(" x_rollout(" << T-1 << ")= " << xt.transpose());
     DEBUG(" Total cost rollout: " << rollout_cost);
 

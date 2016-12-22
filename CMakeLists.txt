@@ -94,7 +94,7 @@ endif (LINUX_BITNESS STREQUAL "32-BIT")
 # set to c++11 standard
 set(Extra_CXX_FLAGS "${Extra_CXX_FLAGS} -std=c++0x")
 # Turn on all warnings and make them errors.
-set(CMAKE_CXX_FLAGS "${Extra_CXX_FLAGS} -Wall -Werror -Wno-error=unused-function")
+set(CMAKE_CXX_FLAGS "${Extra_CXX_FLAGS} -Wall -Werror -Wno-error=unused-function -Wno-error=missing-braces")
 
 #########################################################
 

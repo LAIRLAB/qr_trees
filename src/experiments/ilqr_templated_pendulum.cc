@@ -28,14 +28,14 @@ Matrix<STATE_DIM, STATE_DIM> QT; // Quadratic state cost for final timestep.
 Matrix<CONTROL_DIM, CONTROL_DIM> R;
 Vector<STATE_DIM> xT; // Goal state for final timestep.
 
-double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u)
+double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, int t)
 {
     const Vector<STATE_DIM> dx = x - xT;
     return 0.5*(dx.transpose()*Q*dx + u.transpose()*R*u)[0];
 }
 
 // Final timestep cost function
-double cT(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u)
+double cT(const Vector<STATE_DIM> &x)
 {
     const Vector<STATE_DIM> dx = x - xT;
     return 0.5*(dx.transpose()*QT*dx)[0];
@@ -103,13 +103,13 @@ void control_pendulum(const int T, const double dt, const Vector<STATE_DIM> &x0 
 
         IS_TRUE(math::is_equal(ilqr_controls[t], ut, TOL));
 
-        rollout_cost += ct(xt, ut);
+        rollout_cost += ct(xt, ut, t);
 
         const Vector<STATE_DIM> xt1 = dynamics(xt, ut);
 
         xt = xt1;
     }
-    rollout_cost += cT(xt, Vector<CONTROL_DIM>::Zero());
+    rollout_cost += cT(xt);
     DEBUG(" x_rollout(" << T-1 << ")= " << xt.transpose());
     DEBUG(" Total cost rollout: " << rollout_cost);
     IS_ALMOST_EQUAL(ilqr_total_cost, rollout_cost, TOL);

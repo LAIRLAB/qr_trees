@@ -40,6 +40,7 @@ void linearize_dynamics(const DynamicsFunc &dynamics_func,
 
 template<int _xdim, int _udim, typename CostFunc>
 void quadratize_cost(const CostFunc &cost_func, 
+                     const int t,
                      const Eigen::VectorXd &x, 
                      const Eigen::VectorXd &u,
                      Matrix<_xdim,_xdim> &Q,
@@ -49,11 +50,11 @@ void quadratize_cost(const CostFunc &cost_func,
                      Vector<_udim> &g_u
                      )
 {
-    const auto helper = [&cost_func](const Vector<_xdim+_udim> &xu) -> double
+    const auto helper = [&cost_func, t](const Vector<_xdim+_udim> &xu) -> double
     { 
         Vector<_xdim> x = xu.topRows(_xdim);
         Vector<_udim> u = xu.bottomRows(_udim);
-        return double(cost_func(x,u));
+        return double(cost_func(x,u,t));
     };
 
     Vector<_xdim + _udim> xu;
@@ -86,6 +87,31 @@ void quadratize_cost(const CostFunc &cost_func,
     // Control terms.
     R = math::project_to_psd(R, 1e-8);
     math::check_psd(R, 1e-9);
+}
+
+template<int _xdim, typename CostFunc>
+void quadratize_cost(const CostFunc &cost_func, 
+                     const Eigen::VectorXd &x, 
+                     Matrix<_xdim,_xdim> &Q,
+                     Vector<_xdim> &g
+                     )
+{
+    constexpr double ZERO_THRESH = 1e-7;
+
+    g = math::gradient<_xdim, CostFunc>(cost_func, x);
+    g = g.array() * (g.array().abs() > ZERO_THRESH).template cast<double>();
+
+
+    // Zero out components that are less than this threshold. We do this since
+    // finite differencing has numerical issues.
+    Matrix<_xdim,_xdim> H 
+        = math::hessian<_xdim, CostFunc>(cost_func, x);
+    //Eigen::MatrixXd H = g * g.transpose();
+    Q = H.array() * (H.array().abs() > ZERO_THRESH).template cast<double>();
+
+    Q = (Q + Q.transpose())/2.0;
+    Q = math::project_to_psd(Q, 1e-11);
+    math::check_psd(Q, 1e-12);
 }
 
 } // namespace ilqr

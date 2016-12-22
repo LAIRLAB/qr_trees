@@ -47,16 +47,17 @@ class iLQRSolver
     static_assert(_udim > 0, "Control dimension should be greater than 0");
 public:
     using Dynamics = std::function<Vector<_xdim>(const Vector<_xdim> &x, const Vector<_udim> &u)>;
-    using Cost = std::function<double(const Vector<_xdim> &x, const Vector<_udim> &u)>;
+    using Cost = std::function<double(const Vector<_xdim> &x, const Vector<_udim> &u, const int t)>;
+    using FinalCost = std::function<double(const Vector<_xdim> &x)>;
 
     iLQRSolver(const Dynamics &dynamics,
-         const Cost &final_cost,
+         const FinalCost &final_cost,
          const Cost &cost
          )
     {
-        this->true_dynamics_ = dynamics;
-        this->true_cost_ = cost;
-        this->true_final_cost_ = final_cost;
+        this->dynamics_ = dynamics;
+        this->cost_ = cost;
+        this->final_cost_ = final_cost;
     }
 
     // Computes the control at timestep t at xt.
@@ -112,9 +113,10 @@ public:
             // The step-size adaptation paramter
             constexpr double beta = 0.5; 
             static_assert(beta > 0.0 && beta < 1.0, 
-                    "Step-size adaptation parameter should decrease the step-size");
+                "Step-size adaptation parameter should decrease the step-size");
             
-            // Before we start line search, NaN makes sure termination conditions won't be met.
+            // Before we start line search, NaN makes sure termination conditions 
+            // won't be met.
             double new_cost = std::numeric_limits<double>::quiet_NaN();
             double cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
 
@@ -136,7 +138,8 @@ public:
                 // Since we always half it at the end of the iteration, double it
                 alpha = (1.0/beta)*alpha;
 
-                PRINT("[Iter " << iter << "]: Alpha: " << alpha << ", Cost ratio: " << cost_diff_ratio 
+                PRINT("[Iter " << iter << "]: Alpha: " << alpha 
+                        << ", Cost ratio: " << cost_diff_ratio 
                         << ", New Cost: " << new_cost
                         << ", Old Cost: " << old_cost);
             }
@@ -148,39 +151,33 @@ public:
 
             old_cost = new_cost;
 
-            Matrix<_xdim,_xdim> QT; Matrix<_udim,_udim> RT;
-            Matrix<_xdim,_udim> PT; Vector<_xdim> g_xT; Vector<_udim> g_uT;
-            quadratize_cost(this->true_final_cost_, xhat_[T], Vector<_udim>::Zero(), 
-                    QT, RT, PT, g_xT, g_uT);
+            Matrix<_xdim,_xdim> QT; Vector<_xdim> gT;
+            quadratize_cost(this->final_cost_, xhat_[T], QT, gT);
+
             Matrix<_xdim, _xdim> Vt1 = QT;
-            Matrix<1, _xdim> Gt1 = g_xT.transpose();
+            Matrix<1, _xdim> Gt1 = gT.transpose();
 
             // Backwards pass
             for (int t = T-1; t != -1; --t)
             {
                 Matrix<_xdim, _xdim> A; 
                 Matrix<_xdim, _udim> B;
-                linearize_dynamics(this->true_dynamics_, xhat_[t], uhat_[t], A, B);
+                linearize_dynamics(this->dynamics_, xhat_[t], uhat_[t], A, B);
 
                 Matrix<_xdim,_xdim> Q;
                 Matrix<_udim,_udim> R;
                 Matrix<_xdim,_udim> P;
                 Vector<_xdim> g_x;
                 Vector<_udim> g_u;
-                if (t == T)
-                {
-                    quadratize_cost(this->true_final_cost_, xhat_[t], Vector<_udim>::Zero(), 
-                            Q, R, P, g_x, g_u);
-                }
-                else
-                {
-                    quadratize_cost(this->true_cost_, xhat_[t], uhat_[t], 
-                            Q, R, P, g_x, g_u);
-                }
+                quadratize_cost(this->cost_, t, xhat_[t], uhat_[t], 
+                        Q, R, P, g_x, g_u);
 
-                const Matrix<_udim, _udim> inv_term = -1.0*(R + B.transpose()*(Vt1+LM)*B).inverse();
-                const Matrix<_udim, _xdim> Kt = inv_term * (P.transpose() + B.transpose()*(Vt1+LM)*A); 
-                const Vector<_udim> kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
+                const Matrix<_udim, _udim> inv_term 
+                    = -1.0*(R + B.transpose()*(Vt1+LM)*B).inverse();
+                const Matrix<_udim, _xdim> Kt 
+                    = inv_term * (P.transpose() + B.transpose()*(Vt1+LM)*A); 
+                const Vector<_udim> kt 
+                    = inv_term * (g_u + B.transpose()*Gt1.transpose());
 
                 const Matrix<_xdim, _xdim> tmp = (A + B*Kt);
                 const Matrix<_xdim, _xdim> Vt = Q + 2.0*(P*Kt) 
@@ -220,14 +217,14 @@ public:
         {
             controls[t] = compute_control_stepsize(states[t], t, alpha); 
 
-            const double cost = true_cost_(states[t], controls[t]);
+            const double cost = cost_(states[t], controls[t], t);
             cost_to_go += cost;
 
             // Roll forward the dynamics.
-            const Vector<_xdim> xt1 = true_dynamics_(states[t], controls[t]);
+            const Vector<_xdim> xt1 = dynamics_(states[t], controls[t]);
             states[t+1] = xt1;
         }
-        const double final_cost = true_final_cost_(states[T], Vector<_udim>::Zero());
+        const double final_cost = final_cost_(states[T]); 
         cost_to_go += final_cost;
 
         return cost_to_go;
@@ -245,10 +242,9 @@ public:
     }
 
 private:
-    //DynamicsPtr<_xdim, _udim> *true_dynamics_; 
-    Dynamics true_dynamics_; 
-    Cost true_cost_; 
-    Cost true_final_cost_; 
+    Dynamics dynamics_; 
+    Cost cost_; 
+    FinalCost final_cost_; 
 
     // Feedback control gains.
     std::vector<Matrix<_udim, _xdim>> Ks_;

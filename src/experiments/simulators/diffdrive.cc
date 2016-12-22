@@ -28,7 +28,8 @@ Vector<STATE_DIM> DiffDrive::operator()(const Vector<STATE_DIM>& x, const Vector
     u_lim[V_RIGHT] = std::max(u[V_RIGHT], control_lims_[0]);
 
     Vector<STATE_DIM> xt1 = simulators::RK4<STATE_DIM,CONTROL_DIM>::rk4(dt_, x, u_lim, dyn);
-    xt1[THETA] = fmod(xt1[THETA], 2.0*M_PI);
+    //xt1[THETA] = fmod(xt1[THETA], 2.0*M_PI);
+
     xt1[POS_X] = std::min(xt1[POS_X], world_lims_[1]);
     xt1[POS_X] = std::max(xt1[POS_X], world_lims_[0]);
     xt1[POS_Y] = std::min(xt1[POS_Y], world_lims_[3]);

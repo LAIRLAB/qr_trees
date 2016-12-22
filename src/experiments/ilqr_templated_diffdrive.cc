@@ -28,8 +28,8 @@ template <int rows, int cols>
 using Matrix = Eigen::Matrix<double, rows, cols>;
 
 double robot_radius = 3.35/2.0; // iRobot create;
-double obstacle_factor = 1.0;
-double scale_factor = 3e0;
+double obstacle_factor = 30.0;
+double scale_factor = 1.0e0;
 
 Matrix<STATE_DIM, STATE_DIM> Q;
 Matrix<STATE_DIM, STATE_DIM> QT; // Quadratic state cost for final timestep.
@@ -132,12 +132,12 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     IS_GREATER(dt, 0);
 
     CircleWorld world(-30, 30, -30, 30);
-    Eigen::Vector2d obstacle_pos(-5, 2.5);
-	constexpr double obs_radius = 4.0;
+    Eigen::Vector2d obstacle_pos(0, 0.0);
+	constexpr double obs_radius = 5.0;
     world.add_obstacle(obs_radius, obstacle_pos);
 
-    world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
-    world.add_obstacle(obs_radius, Eigen::Vector2d(-10, 3));
+    //world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
+    //world.add_obstacle(obs_radius, Eigen::Vector2d(-10, 3));
 
 	xT = Vector<STATE_DIM>::Zero();
 	xT[State::POS_X] = 0;
@@ -150,13 +150,13 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 	x0[State::THETA] = M_PI;
 
 	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
-	const double rot_cost = 0.1;
+	const double rot_cost = 0.5;
     Q(State::THETA, State::THETA) = rot_cost;
 
-    QT = 10*Matrix<STATE_DIM,STATE_DIM>::Identity();
-    QT(State::THETA, State::THETA) = 5.0;
+    QT = 15*Matrix<STATE_DIM,STATE_DIM>::Identity();
+    QT(State::THETA, State::THETA) = 150.0;
 
-	R = 1*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
+	R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
     // Initial linearization points are linearly interpolated states and zero
     // control.

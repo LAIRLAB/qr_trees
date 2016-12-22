@@ -77,7 +77,7 @@ inline double iLQRSolver<xdim,udim>::forward_pass(const Vector<xdim> x_init,
 template<int xdim, int udim>
 inline void iLQRSolver<xdim,udim>::solve(const int T, 
         const Vector<xdim> &x_init, const Vector<udim> u_nominal, 
-        double mu, const int max_iters, bool verbose, 
+        const double mu, const int max_iters, bool verbose, 
         const double cost_convg_ratio, const double start_alpha)
 {
     IS_GREATER(T, 0);
@@ -94,9 +94,6 @@ inline void iLQRSolver<xdim,udim>::solve(const int T,
 
     std::vector<Vector<udim>> uhat_new (T, Vector<udim>::Zero());
     std::vector<Vector<xdim>> xhat_new(T+1, Vector<xdim>::Zero());
-
-    // Levenberg-Marquardt parameter for damping. ie. eigenvalue inflation matrix.
-    const Matrix<xdim, xdim> LM = mu * Matrix<xdim, xdim>::Identity();
 
     double old_cost = std::numeric_limits<double>::infinity();
     int iter = 0;
@@ -159,36 +156,7 @@ inline void iLQRSolver<xdim,udim>::solve(const int T,
         // Backwards pass
         for (int t = T-1; t != -1; --t)
         {
-            Matrix<xdim, xdim> A; 
-            Matrix<xdim, udim> B;
-            linearize_dynamics(this->dynamics_, xhat_[t], uhat_[t], A, B);
-
-            Matrix<xdim,xdim> Q;
-            Matrix<udim,udim> R;
-            Matrix<xdim,udim> P;
-            Vector<xdim> g_x;
-            Vector<udim> g_u;
-            quadratize_cost(this->cost_, t, xhat_[t], uhat_[t], 
-                    Q, R, P, g_x, g_u);
-
-            const Matrix<udim, udim> inv_term 
-                = -1.0*(R + B.transpose()*(Vt1+LM)*B).inverse();
-            const Matrix<udim, xdim> Kt 
-                = inv_term * (P.transpose() + B.transpose()*(Vt1+LM)*A); 
-            const Vector<udim> kt 
-                = inv_term * (g_u + B.transpose()*Gt1.transpose());
-
-            const Matrix<xdim, xdim> tmp = (A + B*Kt);
-            const Matrix<xdim, xdim> Vt = Q + 2.0*(P*Kt) 
-                + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
-
-            const Matrix<1, xdim> Gt = kt.transpose()*P.transpose() 
-                + kt.transpose()*R*Kt + g_x.transpose() 
-                + g_u.transpose()*Kt + kt.transpose()*B.transpose()*Vt1*tmp + Gt1*tmp;
-            Vt1 = Vt;
-            Gt1 = Gt;
-            Ks_[t] = Kt;
-            ks_[t] = kt;
+            bellman_backup(t, mu, Vt1, Gt1, Vt1, Gt1, Ks_[t], ks_[t]);
         }
     }
 
@@ -196,6 +164,52 @@ inline void iLQRSolver<xdim,udim>::solve(const int T,
     {
         SUCCESS("Converged after " << iter << " iterations.");
     }
+}
+ 
+
+template<int xdim, int udim>
+inline void iLQRSolver<xdim,udim>::bellman_backup(
+        const int t,
+        const double mu, // Levenberg-Marquardt parameter
+        const Matrix<xdim,xdim> &Vt1, 
+        const Matrix<1,xdim> &Gt1, 
+        Matrix<xdim,xdim> &Vt, 
+        Matrix<1,xdim> &Gt, 
+        Matrix<udim,xdim> &Kt, 
+        Vector<udim> &kt
+        )
+{
+    const Vector<xdim> &x = xhat_[t];
+    const Vector<udim> &u = uhat_[t];
+
+    Matrix<xdim, xdim> A; 
+    Matrix<xdim, udim> B;
+    linearize_dynamics(this->dynamics_, x, u, A, B);
+
+    Matrix<xdim,xdim> Q;
+    Matrix<udim,udim> R;
+    Matrix<xdim,udim> P;
+    Vector<xdim> g_x;
+    Vector<udim> g_u;
+    quadratize_cost(this->cost_, t, x, u, Q, R, P, g_x, g_u);
+
+    // Levenberg-Marquardt parameter for damping. 
+    // ie. eigenvalue inflation matrix.
+    const Matrix<xdim, xdim> LM = mu * Matrix<xdim, xdim>::Identity();
+
+    const Matrix<udim, udim> inv_term 
+        = -1.0*(R + B.transpose()*(Vt1+LM)*B).inverse();
+
+    Kt = inv_term * (P.transpose() + B.transpose()*(Vt1+LM)*A); 
+    kt = inv_term * (g_u + B.transpose()*Gt1.transpose());
+
+    const Matrix<xdim, xdim> tmp = (A + B*Kt);
+    Vt = Q + 2.0*(P*Kt) 
+        + Kt.transpose()*R*Kt + tmp.transpose()*Vt1*tmp;
+
+    Gt = kt.transpose()*P.transpose() 
+        + kt.transpose()*R*Kt + g_x.transpose() 
+        + g_u.transpose()*Kt + kt.transpose()*B.transpose()*Vt1*tmp + Gt1*tmp;
 }
 
 template<int xdim, int udim>

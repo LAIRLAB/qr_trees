@@ -50,12 +50,14 @@ public:
             const int t, const double alpha) const;
 
     // :param x_init - Initial state from which to start the system from.
-    // :param u_nominal - Initial control used for the whole sequence during the first forward pass.
-    // :param mu - Levenberg-Marquardt parameter for damping the least-squares. Setting it to 0 gets
-    //      the default behavior. The damping makes the state-space steps smaller over
-    //      iterations. 
-    inline void solve(const int T, const Vector<xdim> &x_init, const Vector<udim> u_nominal, 
-            double mu = 0, const int max_iters = 1000, bool verbose = false, 
+    // :param u_nominal - Initial control used for the whole sequence during 
+    //      the first forward pass.
+    // :param mu - Levenberg-Marquardt parameter for damping the least-squares. 
+    //      Setting it to 0 gets the default behavior. The damping makes the 
+    //      state-space steps smaller over iterations. 
+    inline void solve(const int T, const Vector<xdim> &x_init, 
+            const Vector<udim> u_nominal, const double mu, 
+            const int max_iters = 1000, bool verbose = false, 
             const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0);
 
     // :param alpha - Backtracking line search parameter. Setting to 1 gives regular forward pass.
@@ -78,6 +80,14 @@ private:
     // Linearization points.
     std::vector<Vector<xdim>> xhat_;
     std::vector<Vector<udim>> uhat_;
+
+    // Performs one timestep of the bellman backup.
+    // :param t - passed to the cost runction
+    // :param mu - Levenberg-Marquardt parameter
+    void bellman_backup(const int t, const double mu, 
+        const Matrix<xdim,xdim> &Vt1, const Matrix<1,xdim> &Gt1, 
+        Matrix<xdim,xdim> &Vt, Matrix<1,xdim> &Gt, 
+        Matrix<udim,xdim> &Kt, Vector<udim> &kt);
 
 };
 

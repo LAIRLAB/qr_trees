@@ -133,8 +133,8 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     CircleWorld world(-30, 30, -30, 30);
     Eigen::Vector2d obstacle_pos(0, 0.0);
-	//constexpr double obs_radius = 5.0;
-    //world.add_obstacle(obs_radius, obstacle_pos);
+	constexpr double obs_radius = 5.0;
+    world.add_obstacle(obs_radius, obstacle_pos);
 
     //world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
     //world.add_obstacle(obs_radius, Eigen::Vector2d(-10, 3));

@@ -24,6 +24,9 @@ enum State
     POS_X = 0,
     POS_Y,
     THETA,
+    dTHETA,
+    dV_LEFT,
+    dV_RIGHT,
     STATE_DIM
 };
 

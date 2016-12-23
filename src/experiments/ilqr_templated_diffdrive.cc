@@ -73,6 +73,10 @@ double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t,
     const Vector<CONTROL_DIM> du = u - u_nominal;
     cost += 0.5*(du.transpose()*R*du)[0];
 
+    cost += 10*x[State::dTHETA]*x[State::dTHETA];
+    cost += 0.1*x[State::dV_LEFT]*x[State::dV_LEFT];
+    cost += 0.1*x[State::dV_RIGHT]*x[State::dV_RIGHT];
+
     cost += 1.0*obstacle_cost(world, robot_radius, x);
 
     return cost;
@@ -133,8 +137,8 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     CircleWorld world(-30, 30, -30, 30);
     Eigen::Vector2d obstacle_pos(0, 0.0);
-	constexpr double obs_radius = 5.0;
-    world.add_obstacle(obs_radius, obstacle_pos);
+	//constexpr double obs_radius = 5.0;
+    //world.add_obstacle(obs_radius, obstacle_pos);
 
     //world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
     //world.add_obstacle(obs_radius, Eigen::Vector2d(-10, 3));
@@ -143,25 +147,30 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 	xT[State::POS_X] = 0;
 	xT[State::POS_Y] = 25;
 	xT[State::THETA] = M_PI/2; 
+	xT[State::dTHETA] = 0;
 
 	x0 = Vector<STATE_DIM>::Zero();
 	x0[State::POS_X] = 0;
 	x0[State::POS_Y] = -25;
 	x0[State::THETA] = M_PI/2;
+	x0[State::dTHETA] = 0;
 
 	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
 	const double rot_cost = 0.5;
     Q(State::THETA, State::THETA) = rot_cost;
+    Q(State::dV_LEFT, State::dV_LEFT) = 0.1;
 
-    QT = 15*Matrix<STATE_DIM,STATE_DIM>::Identity();
-    QT(State::THETA, State::THETA) = 150.0;
+    QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity();
+    QT(State::THETA, State::THETA) = 50.0;
+    QT(State::dTHETA, State::dTHETA) = 5.0;
+    QT(State::dV_LEFT, State::dV_RIGHT) = 5.0;
 
 	R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
     // Initial linearization points are linearly interpolated states and zero
     // control.
-    u_nominal[0] = 1.5;
-    u_nominal[1] = 1.5;
+    u_nominal[0] = 2.5;
+    u_nominal[1] = 2.5;
 
     std::array<double, 2> control_lims = {{-5, 5}};
 
@@ -172,7 +181,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     constexpr bool verbose = true;
     constexpr int max_iters = 300;
-    constexpr double mu = 0.80;
+    constexpr double mu = 1.00;
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 1;
 

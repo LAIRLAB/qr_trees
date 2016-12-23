@@ -21,6 +21,7 @@ DiffDrive::DiffDrive(const double dt,
 Vector<STATE_DIM> DiffDrive::operator()(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u)
 {
     const auto dyn = std::bind(continuous_dynamics, _1, _2, wheel_dist_);
+
     Vector<CONTROL_DIM> u_lim = u;
     u_lim[V_LEFT] = std::min(u[V_LEFT], control_lims_[1]);
     u_lim[V_RIGHT] = std::min(u[V_RIGHT], control_lims_[1]);
@@ -44,10 +45,14 @@ Vector<STATE_DIM> continuous_dynamics(const Vector<STATE_DIM>& x,
     Vector<STATE_DIM> x_dot;
 
     // Differential-drive. Set the derivative wrt to the state.
-    const double coupled_vel = 0.5*(u[V_LEFT] + u[V_RIGHT]);
+    //const double coupled_vel = 0.5*(u[V_LEFT] + u[V_RIGHT]);
+    const double coupled_vel = 0.5*(x[dV_LEFT] + x[dV_RIGHT]);
     x_dot[POS_X] = coupled_vel * std::cos(x[THETA]); // xdot
     x_dot[POS_Y] = coupled_vel * std::sin(x[THETA]); // ydot
-    x_dot[THETA] = (u[V_LEFT] - u[V_RIGHT])/wheel_dist; // thetadot
+    x_dot[THETA] = x[dTHETA];
+    x_dot[dTHETA] = (u[V_LEFT] - u[V_RIGHT])/wheel_dist; // theta double-dot
+    x_dot[dV_LEFT]= u[V_LEFT]; 
+    x_dot[dV_RIGHT] = u[V_RIGHT];
 
     return x_dot;
 }

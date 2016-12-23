@@ -16,6 +16,9 @@ DiffDrive::DiffDrive(const double dt,
                     const double wheel_dist)
     : dt_(dt), control_lims_(control_lims), world_lims_(world_lims), wheel_dist_(wheel_dist)
 {
+    IS_GREATER(control_lims_[1], control_lims_[0]);
+    IS_GREATER(world_lims_[1], world_lims_[0]);
+    IS_GREATER(world_lims_[3], world_lims_[2]);
 }
 
 Vector<STATE_DIM> DiffDrive::operator()(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u)
@@ -23,14 +26,18 @@ Vector<STATE_DIM> DiffDrive::operator()(const Vector<STATE_DIM>& x, const Vector
     const auto dyn = std::bind(continuous_dynamics, _1, _2, wheel_dist_);
 
     Vector<CONTROL_DIM> u_lim = u;
-    u_lim[V_LEFT] = std::min(u[V_LEFT], control_lims_[1]);
-    u_lim[V_RIGHT] = std::min(u[V_RIGHT], control_lims_[1]);
-    u_lim[V_LEFT] = std::max(u[V_LEFT], control_lims_[0]);
-    u_lim[V_RIGHT] = std::max(u[V_RIGHT], control_lims_[0]);
+    const double u_range = (control_lims_[1] - control_lims_[0]);
+    for (int c_dim = 0; c_dim < CONTROL_DIM; ++c_dim)
+    {
+        u_lim[c_dim] = u_range * 1.0/(1.0 + std::exp(-u[c_dim])) + control_lims_[0];
+    }
+    //IS_GREATER_EQUAL(u_lim[V_LEFT], control_lims_[0]);
+    //IS_GREATER_EQUAL(u_lim[V_LEFT], control_lims_[0]);
+    //IS_LESS_EQUAL(u_lim[V_RIGHT], control_lims_[1]);
+    //IS_LESS_EQUAL(u_lim[V_RIGHT], control_lims_[1]);
 
     Vector<STATE_DIM> xt1 = simulators::RK4<STATE_DIM,CONTROL_DIM>::rk4(dt_, x, u_lim, dyn);
 
-    //if (world_lims_[0]) {}
     xt1[POS_X] = std::min(xt1[POS_X], world_lims_[1]);
     xt1[POS_X] = std::max(xt1[POS_X], world_lims_[0]);
     xt1[POS_Y] = std::min(xt1[POS_Y], world_lims_[3]);

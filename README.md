@@ -1,5 +1,7 @@
-# lqr_trees
-Hindsight Optimization using LQR
+# qr_trees
+Extremely alpha code.
+
+An implementation of (templated) iLQR can be found in headers `src/templated/iLQR.hh` and `src/templated/iLQR_impl.hh`. 
 
 ## Requirements
 - Eigen3

@@ -1,5 +1,6 @@
 
 #include <templated/iLQR.hh>
+#include <templated/iLQR_hindsight.hh>
 #include <templated/taylor_expansion.hh>
 
 #include <lqr/LQR.hh>
@@ -81,8 +82,8 @@ void test_ilqr_vs_lqr(const int T)
     constexpr int max_iters = 300;
 
     double mu = 0.0;
-    clock_t ilqr_begin_time = clock();
 
+    clock_t ilqr_begin_time = clock();
     ilqr::iLQRSolver<xdim,udim> solver(dynamics, final_cost, quadratic_cost_time);
     solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
     std::vector<Vector<xdim>> ilqr_temp_states; 
@@ -91,7 +92,7 @@ void test_ilqr_vs_lqr(const int T)
             ilqr_temp_controls, 1.0);
     SUCCESS("iLQR Templated (mu=" << mu << ") Time: " 
             << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
-            << "\nTotal Cost: " << ilqr_temp_total_cost);
+            << "\n\tTotal Cost: " << ilqr_temp_total_cost);
 
     // With a higher mu (Levenberg-Marquardt parameter), it should converge slower, but still
     // converge with almost the same value (it is slightly off due to the damping).
@@ -102,7 +103,20 @@ void test_ilqr_vs_lqr(const int T)
             ilqr_temp_controls, 1.0);
     SUCCESS("iLQR Templated (mu=" << mu << ") Time: " 
             << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
-            << "\nTotal Cost: " << ilqr_temp_higher_mu_total_cost);
+            << "\n\tTotal Cost: " << ilqr_temp_higher_mu_total_cost);
+
+    mu = 0.0;
+    std::vector<Vector<xdim>> ilqr_hind_states; 
+    std::vector<Vector<udim>> ilqr_hind_controls;
+    ilqr::HindsightSplit<xdim,udim> split(dynamics, final_cost, quadratic_cost_time, 1.0);
+    clock_t ilqr_hindsight_begin_time = clock();
+    ilqr::iLQRHindsightSolver<xdim,udim> hindsight_solver({split});
+    hindsight_solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
+    const double ilqr_hind_total_cost = hindsight_solver.forward_pass(0, x_init, ilqr_hind_states, 
+            ilqr_hind_controls, 1.0);
+    SUCCESS("iLQR Hindsight (mu=" << mu << ") Time: " 
+            << (clock() - ilqr_hindsight_begin_time) / (double) CLOCKS_PER_SEC
+            << "\n\tTotal Cost: " << ilqr_hind_total_cost);
 
     clock_t lqr_begin_time = clock();
     lqr::LQR regular_lqr(A, B, Q, R, T);
@@ -113,7 +127,7 @@ void test_ilqr_vs_lqr(const int T)
     regular_lqr.forward_pass(x_init, lqr_costs, lqr_states, lqr_controls);
     const double lqr_total_cost = std::accumulate(lqr_costs.begin(), lqr_costs.end(), 0.0);
     SUCCESS("LQR Time: " << (clock() - lqr_begin_time) / (double) CLOCKS_PER_SEC
-            << "\nTotal Cost: " << lqr_total_cost);
+            << "\n\tTotal Cost: " << lqr_total_cost);
 
     std::vector<double> ilqr_dyn_costs;
     std::vector<Eigen::VectorXd> ilqr_dyn_states; 
@@ -128,13 +142,16 @@ void test_ilqr_vs_lqr(const int T)
     ilqr_dynamic.forward_pass(ilqr_dyn_costs, ilqr_dyn_states, ilqr_dyn_controls, true);
     const double ilqr_dyn_total_cost = std::accumulate(ilqr_dyn_costs.begin(), ilqr_dyn_costs.end(), 0.0);
     SUCCESS("iLQR Dynamic Time: " << (clock() - ilqr_dyn_begin_time) / (double) CLOCKS_PER_SEC
-            << "\nTotal Cost: " << ilqr_dyn_total_cost);
+            << "\n\tTotal Cost: " << ilqr_dyn_total_cost);
 
     // Make sure all the costs are about equal.
     IS_ALMOST_EQUAL(ilqr_dyn_total_cost, lqr_total_cost, TOL);
     IS_ALMOST_EQUAL(ilqr_temp_total_cost, ilqr_dyn_total_cost, TOL);
     IS_ALMOST_EQUAL(ilqr_temp_total_cost, lqr_total_cost, TOL);
     IS_ALMOST_EQUAL(ilqr_temp_total_cost, ilqr_temp_higher_mu_total_cost, TOL);
+    IS_ALMOST_EQUAL(ilqr_hind_total_cost, ilqr_temp_total_cost, TOL);
+    IS_ALMOST_EQUAL(ilqr_hind_total_cost, lqr_total_cost, TOL);
+    IS_ALMOST_EQUAL(ilqr_hind_total_cost, ilqr_dyn_total_cost, TOL);
 
     DEBUG("All methods' costs are almost equal.");
 }

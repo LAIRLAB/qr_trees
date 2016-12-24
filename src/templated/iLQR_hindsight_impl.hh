@@ -5,26 +5,6 @@
 
 #include <ostream>
 
-namespace
-{
-
-template<int _dim>
-std::ostream& operator<<(std::ostream &os, const std::vector<ilqr::Vector<_dim>> &vectors)
-{
-    for (size_t t = 0; t < vectors.size(); ++t)
-    {
-        const ilqr::Vector<_dim> &vec = vectors[t];
-        os << "t=" << t  << ": " << vec.transpose(); 
-        if (t < vectors.size() -1)
-        {
-            os << std::endl;
-        }
-    }
-    return os;
-}
-
-} // namespace
-
 namespace ilqr
 {
 
@@ -37,11 +17,11 @@ inline Vector<udim> iLQRHindsightSolver<xdim,udim>::compute_control_stepsize(
     IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
     const HindsightBranch<xdim,udim> &branch = branches_[branch_num];
 
-    const Vector<xdim> xhat = (t == 0) ? x0_ : branch.xhat[t];
-    const Vector<udim> uhat = (t == 0) ? u0_ : branch.uhat[t];
+    const Vector<xdim> xhat = branch.xhat[t];
+    const Vector<udim> uhat = branch.uhat[t];
 
-    const Matrix<udim, xdim> Kt = (t == 0) ? K0_ : branch.Ks[t];
-    const Vector<udim> kt = (t == 0) ? k0_ : branch.ks[t];
+    const Matrix<udim, xdim> Kt = branch.Ks[t];
+    const Vector<udim> kt = branch.ks[t];
 
     const Vector<xdim> zt = (xt - xhat);
     const Vector<udim> vt = Kt * zt + alpha*kt;
@@ -100,16 +80,21 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
     IS_GREATER(cost_convg_ratio, 0);
     IS_GREATER(start_alpha, 0);
 
+    x0_ = Vector<xdim>::Zero();
+    u0_ = u_nominal;
+    K0_ = Matrix<udim,xdim>::Zero();
+    k0_ = Vector<udim>::Zero();
+
     // Initialize each branch
     const int num_branches = branches_.size(); 
     for (int branch_num = 0; branch_num < num_branches; ++branch_num)
     {
         HindsightBranch<xdim,udim> &branch = branches_[branch_num];
-        branch.Ks = std::vector<Matrix<udim, xdim>>(T-1, Matrix<udim, xdim>::Zero());
-        branch.ks = std::vector<Vector<udim>>(T-1, Vector<udim>::Zero());
+        branch.Ks = std::vector<Matrix<udim, xdim>>(T, Matrix<udim, xdim>::Zero());
+        branch.ks = std::vector<Vector<udim>>(T, Vector<udim>::Zero());
 
-        branch.uhat = std::vector<Vector<udim>>(T-1, u_nominal);
-        branch.xhat = std::vector<Vector<xdim>>(T, Vector<xdim>::Zero());
+        branch.uhat = std::vector<Vector<udim>>(T, u_nominal);
+        branch.xhat = std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero());
     }
 
     //std::vector<std::vector<Vector<udim>>> uhat_new(num_branches, 
@@ -150,8 +135,6 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
                 const double p = branches_[branch_num].split.probability;
                 new_cost +=  p * branch_new_cost;
             }
-            IS_EQUAL(new_cost, forward_pass(0, x_init, xhat_new, uhat_new, alpha));
-            WARN("alpha:" << alpha << "newc: " << new_cost << " vs " << old_cost);
 
             cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
 
@@ -169,14 +152,9 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         for (int branch_num = 0; branch_num < num_branches; ++branch_num)
         {
             forward_pass(branch_num, x_init, xhat_new, uhat_new, alpha);
-            branches_[branch_num].xhat.resize(T); 
-            branches_[branch_num].uhat.resize(T-1); 
-            for (int t = 1; t < uhat_new.size(); ++t)
-            {
-                branches_[branch_num].xhat[t] = xhat_new[t];
-                branches_[branch_num].uhat[t] = uhat_new[t];
-            }
-            branches_[branch_num].xhat.back() = xhat_new.back();
+            branches_[branch_num].xhat = xhat_new;
+            branches_[branch_num].uhat = uhat_new;
+
             x0s[branch_num] = xhat_new[0];
             u0s[branch_num] = uhat_new[0];
         }
@@ -275,6 +253,14 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         k0_ = inv_term * (wg_u + weighted_kt_term);
     }
 
+    // Copy the first timestep K to all the branches.
+    for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+    {
+        HindsightBranch<xdim,udim> &branch = branches_[branch_num];
+        branch.Ks.front() = K0_;
+        branch.ks.front() = k0_;
+    }
+
     if (verbose)
     {
         SUCCESS("Converged after " << iter << " iterations.");
@@ -332,11 +318,11 @@ inline void iLQRHindsightSolver<xdim,udim>::bellman_backup(
 template<int xdim, int udim>
 inline int iLQRHindsightSolver<xdim,udim>::timesteps() const
 { 
-    const size_t T = branches_[0].uhat.size() + 1; 
+    const size_t T = branches_[0].uhat.size(); 
     // Confirm that all the required parts the same size
-    IS_EQUAL(T-1, branches_[0].ks.size());
-    IS_EQUAL(T-1, branches_[0].Ks.size());
-    IS_EQUAL(T, branches_[0].xhat.size());
+    IS_EQUAL(T, branches_[0].ks.size());
+    IS_EQUAL(T, branches_[0].Ks.size());
+    IS_EQUAL(T+1, branches_[0].xhat.size());
     return static_cast<int>(T); 
 }
 

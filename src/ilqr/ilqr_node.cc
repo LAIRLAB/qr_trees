@@ -87,7 +87,6 @@ void iLQRNode::bellman_backup(const std::vector<std::shared_ptr<iLQRNode>> &chil
         weighted_inv_term.noalias() += p * (B.transpose()*Vt1*B);
         weighted_Kt_term.noalias()  += p * (B.transpose()*Vt1*A);
         weighted_kt_term.noalias()  += p * (B.transpose()*Gt1.transpose());
-
     }
 
     const ilqr::Cost cost_expansion = ilqr::quadraticize_cost(cost_func(), x(), u());

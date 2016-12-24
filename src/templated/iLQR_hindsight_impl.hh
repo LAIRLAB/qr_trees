@@ -153,10 +153,10 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
 
             branches_[branch_num].xhat.swap(xhat_new);
             branches_[branch_num].uhat.swap(uhat_new);
-
         }
-        x0_ = xhat_new[0];
-        u0_ = uhat_new[0];
+        //TODO check that all branches have the same value.
+        x0_ = x0s[0];
+        u0_ = u0s[0];
 
         if (verbose)
         {
@@ -182,9 +182,11 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             Matrix<xdim,xdim> Vt1; Vector<xdim> Gt1;
             quadratize_cost(branch.split.final_cost, branch.xhat.back(), Vt1, Gt1);
 
+            // Storage for backing up the value function.
             Matrix<xdim, xdim> Vt; 
             Matrix<1, xdim> Gt;
-            // Backwards pass
+
+            // Backwards pass for this branch.
             for (int t = T-1; t != -1; --t)
             {
                 if (t > 0)
@@ -251,8 +253,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
     for (int branch_num = 0; branch_num < num_branches; ++branch_num)
     {
         HindsightBranch<xdim,udim> &branch = branches_[branch_num];
-        branch.Ks.front() = K0_;
-        branch.ks.front() = k0_;
+        branch.Ks[0] = K0_;
+        branch.ks[0] = k0_;
     }
 
     if (verbose)

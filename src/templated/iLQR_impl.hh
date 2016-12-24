@@ -153,10 +153,15 @@ inline void iLQRSolver<xdim,udim>::solve(const int T,
         Matrix<xdim, xdim> Vt1 = QT;
         Matrix<1, xdim> Gt1 = gT.transpose();
 
-        // Backwards pass
+        // Backwards pass.
+        // Storage for backing up the value function.
+        Matrix<xdim, xdim> Vt;
+        Matrix<1, xdim> Gt;
         for (int t = T-1; t != -1; --t)
         {
-            bellman_backup(t, mu, Vt1, Gt1, Vt1, Gt1, Ks_[t], ks_[t]);
+            bellman_backup(t, mu, Vt1, Gt1, Vt, Gt, Ks_[t], ks_[t]);
+            Vt1 = Vt;
+            Gt1 = Gt;
         }
     }
 

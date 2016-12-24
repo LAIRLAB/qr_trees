@@ -18,7 +18,7 @@ namespace
     constexpr int udim = 2;
 
     // Should be higher as the cost convg. threshold for iLQRSolver.
-    constexpr double TOL = 1e-3; 
+    constexpr double TOL = 1e-5;
 
     template<int _rows>
     using Vector = ilqr::Vector<_rows>;

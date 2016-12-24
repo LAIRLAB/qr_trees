@@ -97,11 +97,7 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         branch.xhat = std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero());
     }
 
-    //std::vector<std::vector<Vector<udim>>> uhat_new(num_branches, 
-    //        std::vector<Vector<udim>>(T, Vector<udim>::Zero()));
-    //std::vector<std::vector<Vector<xdim>>> xhat_new(num_branches, 
-    //        std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero()));
-
+    // Holders used for the line search.
     std::vector<Vector<udim>> uhat_new (T, Vector<udim>::Zero());
     std::vector<Vector<xdim>> xhat_new(T+1, Vector<xdim>::Zero());
 
@@ -152,11 +148,12 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         for (int branch_num = 0; branch_num < num_branches; ++branch_num)
         {
             forward_pass(branch_num, x_init, xhat_new, uhat_new, alpha);
-            branches_[branch_num].xhat = xhat_new;
-            branches_[branch_num].uhat = uhat_new;
-
             x0s[branch_num] = xhat_new[0];
             u0s[branch_num] = uhat_new[0];
+
+            branches_[branch_num].xhat.swap(xhat_new);
+            branches_[branch_num].uhat.swap(uhat_new);
+
         }
         x0_ = xhat_new[0];
         u0_ = uhat_new[0];
@@ -221,21 +218,18 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             const HindsightBranch<xdim,udim> &branch = branches_[branch_num];
             const double p = branch.split.probability;
 
-            const Vector<xdim> x = x0_;
-            const Vector<udim> u = u0_;
+            const Vector<xdim> &x = x0_;
+            const Vector<udim> &u = u0_;
             
             Matrix<xdim, xdim> A; 
             Matrix<xdim, udim> B;
             linearize_dynamics(branch.split.dynamics, x, u, A, B);
 
-            const Matrix<xdim,xdim> Vt1 = branch_V1[branch_num];
-            const Matrix<1,xdim> Gt1 = branch_G1[branch_num];
-            //const Matrix<xdim,xdim> Vt1 = Matrix<xdim,xdim>::Zero();
-            //const Matrix<1,xdim> Gt1 = Matrix<1,xdim>::Zero();
+            const Matrix<xdim,xdim> &Vt1 = branch_V1[branch_num];
+            const Matrix<1,xdim> &Gt1 = branch_G1[branch_num];
             weighted_inv_term.noalias() += p * (B.transpose()*(Vt1+LM)*B);
             weighted_Kt_term.noalias()  += p * (B.transpose()*(Vt1+LM)*A);
             weighted_kt_term.noalias()  += p * (B.transpose()*Gt1.transpose());
-
 
             Matrix<xdim,xdim> Q; Matrix<udim,udim> R; Matrix<xdim,udim> P;
             Vector<xdim> g_x; Vector<udim> g_u;
@@ -249,8 +243,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         }
 
         const Matrix<udim,udim> inv_term = -1.0*(wR + weighted_inv_term).inverse();
-        K0_ = inv_term * (wP.transpose() + weighted_Kt_term); 
-        k0_ = inv_term * (wg_u + weighted_kt_term);
+        K0_.noalias() = inv_term * (wP.transpose() + weighted_Kt_term);
+        k0_.noalias() = inv_term * (wg_u + weighted_kt_term);
     }
 
     // Copy the first timestep K to all the branches.
@@ -303,8 +297,8 @@ inline void iLQRHindsightSolver<xdim,udim>::bellman_backup(
 
     branch.Ks[t] = inv_term * (P.transpose() + B.transpose()*(Vt1+LM)*A); 
     branch.ks[t] = inv_term * (g_u + B.transpose()*Gt1.transpose());
-    Matrix<udim, xdim> Kt = branch.Ks[t];
-    Vector<udim> kt = branch.ks[t];
+    const Matrix<udim, xdim> &Kt = branch.Ks[t];
+    const Vector<udim> &kt = branch.ks[t];
 
     const Matrix<xdim, xdim> tmp = (A + B*Kt);
     Vt = Q + 2.0*(P*Kt) 
@@ -318,6 +312,7 @@ inline void iLQRHindsightSolver<xdim,udim>::bellman_backup(
 template<int xdim, int udim>
 inline int iLQRHindsightSolver<xdim,udim>::timesteps() const
 { 
+    IS_GREATER(branches_.size(), 0);
     const size_t T = branches_[0].uhat.size(); 
     // Confirm that all the required parts the same size
     IS_EQUAL(T, branches_[0].ks.size());

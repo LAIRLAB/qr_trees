@@ -225,7 +225,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     DEBUG(" x_rollout(" << T-1 << ")= " << xt.transpose());
     DEBUG(" Total cost rollout: " << rollout_cost);
 
-    //states_to_file(x0, xT, states, states_fname);
+    states_to_file(x0, xT, states, states_fname);
     obstacles_to_file(world, obstacles_fname);
 }
 

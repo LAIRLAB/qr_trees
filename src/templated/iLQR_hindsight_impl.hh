@@ -17,16 +17,13 @@ inline Vector<udim> iLQRHindsightSolver<xdim,udim>::compute_control_stepsize(
     IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
     const HindsightBranch<xdim,udim> &branch = branches_[branch_num];
 
-    const Vector<xdim> xhat = branch.xhat[t];
-    const Vector<udim> uhat = branch.uhat[t];
+    const Matrix<udim, xdim> &Kt = branch.Ks[t];
+    const Vector<udim> &kt = branch.ks[t];
 
-    const Matrix<udim, xdim> Kt = branch.Ks[t];
-    const Vector<udim> kt = branch.ks[t];
-
-    const Vector<xdim> zt = (xt - xhat);
+    const Vector<xdim> zt = (xt - branch.xhat[t]);
     const Vector<udim> vt = Kt * zt + alpha*kt;
 
-    return Vector<udim>(vt + uhat);
+    return Vector<udim>(vt + branch.uhat[t]);
 }
 
 template<int xdim, int udim>
@@ -153,7 +150,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             branches_[branch_num].xhat.swap(xhat_new);
             branches_[branch_num].uhat.swap(uhat_new);
         }
-        //TODO check that all branches have the same value.
+        //TODO If they are equal across all branches, we can just grab one 
+        // instead of storing them all.
         x0_ = x0s[0];
         u0_ = u0s[0];
 
@@ -185,15 +183,14 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             Matrix<xdim, xdim> Vt; 
             Matrix<1, xdim> Gt;
 
-            // Backwards pass for this branch.
-            for (int t = T-1; t != -1; --t)
+            // Backwards pass for this branch. 
+            // We do it until t > 0 instead of t >=0 since we handle the first
+            // timestep separately.
+            for (int t = T-1; t > 0; --t)
             {
-                if (t > 0)
-                {
-                    bellman_backup(branch_num, t, mu, Vt1, Gt1, Vt, Gt);
-                    Vt1 = Vt;
-                    Gt1 = Gt;
-                }
+                bellman_backup(branch_num, t, mu, Vt1, Gt1, Vt, Gt);
+                Vt1 = Vt;
+                Gt1 = Gt;
             }
             branch_V1[branch_num] = Vt1; 
             branch_G1[branch_num] = Gt1; 
@@ -249,11 +246,13 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         k0_.noalias() = inv_term * (wg_u + weighted_kt_term);
 
         // Copy the first timestep K to all the branches.
-        for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+        for (auto &branch : branches_)
         {
-            HindsightBranch<xdim,udim> &branch = branches_[branch_num];
             branch.Ks[0] = K0_;
             branch.ks[0] = k0_;
+            // Confirm that these are already equal across branches.
+            IS_TRUE(math::is_equal(branch.xhat[0], x0_));
+            IS_TRUE(math::is_equal(branch.uhat[0], u0_));
         }
     }
 

@@ -106,8 +106,8 @@ inline void iLQRSolver<xdim,udim>::solve(const int T,
             alpha *= beta;
         } 
 
-        xhat_ = xhat_new;
-        uhat_ = uhat_new;
+        xhat_.swap(xhat_new);
+        uhat_.swap(uhat_new);
 
         if (verbose)
         {
@@ -133,11 +133,11 @@ inline void iLQRSolver<xdim,udim>::solve(const int T,
         Matrix<xdim, xdim> Vt1 = QT;
         Matrix<1, xdim> Gt1 = gT.transpose();
 
-        // Backwards pass.
+        // Backwards pass from t=T-1 all the way through the first at t=0.
         // Storage for backing up the value function.
         Matrix<xdim, xdim> Vt;
         Matrix<1, xdim> Gt;
-        for (int t = T-1; t != -1; --t)
+        for (int t = T-1; t >= 0; --t)
         {
             bellman_backup(t, mu, Vt1, Gt1, Vt, Gt, Ks_[t], ks_[t]);
             Vt1 = Vt;

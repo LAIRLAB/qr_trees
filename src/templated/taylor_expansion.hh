@@ -4,6 +4,9 @@
 
 #include <Eigen/Dense>
 
+#include <sstream>
+#include <vector>
+
 namespace ilqr
 {
 
@@ -12,6 +15,24 @@ using Matrix = Eigen::Matrix<double, _rows, _cols>;
 
 template<int _rows>
 using Vector = Eigen::Matrix<double, _rows, 1>;
+
+// Helper function for debugging a sequence of vectors.
+template<int _dim>
+std::string time_print(const std::vector<Vector<_dim>> &vectors)
+{
+    std::ostringstream oss;
+    for (size_t t = 0; t < vectors.size(); ++t)
+    {
+        const Vector<_dim> &vec = vectors[t];
+        oss << "t=" << t  << ": " << vec.transpose();
+        if (t < vectors.size() -1)
+        {
+            oss << std::endl;
+        }
+    }
+    return oss.str();
+}
+
 
 template<int _xdim, int _udim, typename DynamicsFunc>
 void linearize_dynamics(const DynamicsFunc &dynamics_func, 

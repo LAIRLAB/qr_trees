@@ -188,8 +188,8 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     clock_t ilqr_begin_time = clock();
 
-    ilqr::HindsightSplit<STATE_DIM,CONTROL_DIM> split(dynamics, cT, cost_t, 1.0);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> solver({split});
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch(dynamics, cT, cost_t, 1.0);
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> solver({branch});
 
     solver.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
 

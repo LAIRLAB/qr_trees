@@ -108,13 +108,13 @@ void test_ilqr_vs_lqr(const int T)
     mu = 0.0;
     std::vector<Vector<xdim>> ilqr_hind_states; 
     std::vector<Vector<udim>> ilqr_hind_controls;
-    ilqr::HindsightSplit<xdim,udim> split(dynamics, final_cost, quadratic_cost_time, 1.0);
+    ilqr::HindsightBranch<xdim,udim> branch(dynamics, final_cost, quadratic_cost_time, 1.0);
     clock_t ilqr_hindsight_begin_time = clock();
-    ilqr::iLQRHindsightSolver<xdim,udim> hindsight_solver({split});
+    ilqr::iLQRHindsightSolver<xdim,udim> hindsight_solver({branch});
     hindsight_solver.solve(T, x_init, u_nominal, mu, max_iters, verbose);
     const double ilqr_hind_total_cost = hindsight_solver.forward_pass(0, x_init, ilqr_hind_states, 
             ilqr_hind_controls, 1.0);
-    SUCCESS("iLQR Hindsight (mu=" << mu << ") Time: " 
+    SUCCESS("iLQR Hindsight as iLQR chain (mu=" << mu << ") Time: "
             << (clock() - ilqr_hindsight_begin_time) / (double) CLOCKS_PER_SEC
             << "\n\tTotal Cost: " << ilqr_hind_total_cost);
 

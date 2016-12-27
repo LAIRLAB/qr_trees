@@ -23,16 +23,14 @@ namespace ilqr
 //template<int _rows>
 //using Vector = Eigen::Matrix<double, _rows, 1>;
 
-
 template<int xdim, int udim>
-struct HindsightSplit
+struct HindsightBranch
 {
     using Dynamics = std::function<Vector<xdim>(const Vector<xdim> &x, const Vector<udim> &u)>;
     using Cost = std::function<double(const Vector<xdim> &x, const Vector<udim> &u, const int t)>;
     using FinalCost = std::function<double(const Vector<xdim> &x)>;
 
-    HindsightSplit() = default;
-    HindsightSplit(const Dynamics &dyn, const FinalCost &cost_final, const Cost &cost_regular, const double prob) 
+    HindsightBranch(const Dynamics &dyn, const FinalCost &cost_final, const Cost &cost_regular, const double prob)
         : dynamics(dyn), final_cost(cost_final), cost(cost_regular), probability(prob)
     {
     }
@@ -42,13 +40,6 @@ struct HindsightSplit
     Cost cost;
 
     double probability = 0;
-};
-
-
-template<int xdim, int udim>
-struct HindsightBranch
-{
-    HindsightSplit<xdim, udim> split;
 
     // Feedback control gains.
     std::vector<Matrix<udim, xdim>> Ks;
@@ -69,15 +60,14 @@ public:
     using Cost = std::function<double(const Vector<xdim> &x, const Vector<udim> &u, const int t)>;
     using FinalCost = std::function<double(const Vector<xdim> &x)>;
 
-    iLQRHindsightSolver(const std::vector<HindsightSplit<xdim,udim>> &splits)
+    iLQRHindsightSolver(const std::vector<HindsightBranch<xdim,udim>> &branches)
     {
-        IS_GREATER(splits.size(), 0);
-        branches_.resize(splits.size()); 
+        IS_GREATER(branches.size(), 0);
+        branches_ = branches; 
         double total_prob = 0;
-        for (size_t i = 0; i < splits.size(); ++i)
+        for (const auto &branch : branches_)
         {
-            total_prob += splits[i].probability;
-            branches_[i].split = splits[i];
+            total_prob += branch.probability;
         }
         IS_ALMOST_EQUAL(total_prob, 1.0, 1e-3);
     }

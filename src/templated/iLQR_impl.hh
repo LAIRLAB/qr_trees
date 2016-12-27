@@ -5,26 +5,6 @@
 
 #include <ostream>
 
-namespace
-{
-
-template<int _dim>
-std::ostream& operator<<(std::ostream &os, const std::vector<ilqr::Vector<_dim>> &vectors)
-{
-    for (size_t t = 0; t < vectors.size(); ++t)
-    {
-        const ilqr::Vector<_dim> &vec = vectors[t];
-        os << "t=" << t  << ": " << vec.transpose(); 
-        if (t < vectors.size() -1)
-        {
-            os << std::endl;
-        }
-    }
-    return os;
-}
-
-} // namespace
-
 namespace ilqr
 {
 

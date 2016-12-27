@@ -42,9 +42,9 @@ inline double iLQRHindsightSolver<xdim,udim>::forward_pass(const int branch_num,
     const int T = timesteps();
 
     const HindsightBranch<xdim,udim> &branch = branches_[branch_num];
-    const auto &dynamics_fnc = branch.split.dynamics;
-    const auto &cost_fnc = branch.split.cost;
-    const auto &final_cost_fnc = branch.split.final_cost;
+    const auto &dynamics_fnc = branch.dynamics;
+    const auto &cost_fnc = branch.cost;
+    const auto &final_cost_fnc = branch.final_cost;
 
     controls.resize(T);
     states.resize(T+1);
@@ -128,10 +128,9 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             {
                 const double branch_new_cost 
                     = forward_pass(branch_num, x_init, xhat_new, uhat_new, alpha);
-                const double p = branches_[branch_num].split.probability;
+                const double p = branches_[branch_num].probability;
                 new_cost +=  p * branch_new_cost;
             }
-
             cost_diff_ratio = std::abs((old_cost - new_cost) / new_cost);
 
             // Try decreasing the step-size by beta-times. 
@@ -180,7 +179,7 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         {
             const HindsightBranch<xdim,udim> &branch = branches_[branch_num];
             Matrix<xdim,xdim> Vt1; Vector<xdim> Gt1;
-            quadratize_cost(branch.split.final_cost, branch.xhat.back(), Vt1, Gt1);
+            quadratize_cost(branch.final_cost, branch.xhat.back(), Vt1, Gt1);
 
             // Storage for backing up the value function.
             Matrix<xdim, xdim> Vt; 
@@ -218,14 +217,15 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         for (int branch_num = 0; branch_num < num_branches; ++branch_num)
         {
             const HindsightBranch<xdim,udim> &branch = branches_[branch_num];
-            const double p = branch.split.probability;
+            const double p = branch.probability;
 
-            const Vector<xdim> &x = x0_;
-            const Vector<udim> &u = u0_;
+            // Copy to the stack.
+            const Vector<xdim> x = x0_;
+            const Vector<udim> u = u0_;
             
             Matrix<xdim, xdim> A; 
             Matrix<xdim, udim> B;
-            linearize_dynamics(branch.split.dynamics, x, u, A, B);
+            linearize_dynamics(branch.dynamics, x, u, A, B);
 
             const Matrix<xdim,xdim> &Vt1 = branch_V1[branch_num];
             const Matrix<1,xdim> &Gt1 = branch_G1[branch_num];
@@ -235,7 +235,7 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
 
             Matrix<xdim,xdim> Q; Matrix<udim,udim> R; Matrix<xdim,udim> P;
             Vector<xdim> g_x; Vector<udim> g_u;
-            quadratize_cost(branch.split.cost, 0, x, u, Q, R, P, g_x, g_u);
+            quadratize_cost(branch.cost, 0, x, u, Q, R, P, g_x, g_u);
 
             wQ += p * Q;
             wR += p * R;
@@ -247,14 +247,14 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         const Matrix<udim,udim> inv_term = -1.0*(wR + weighted_inv_term).inverse();
         K0_.noalias() = inv_term * (wP.transpose() + weighted_Kt_term);
         k0_.noalias() = inv_term * (wg_u + weighted_kt_term);
-    }
 
-    // Copy the first timestep K to all the branches.
-    for (int branch_num = 0; branch_num < num_branches; ++branch_num)
-    {
-        HindsightBranch<xdim,udim> &branch = branches_[branch_num];
-        branch.Ks[0] = K0_;
-        branch.ks[0] = k0_;
+        // Copy the first timestep K to all the branches.
+        for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+        {
+            HindsightBranch<xdim,udim> &branch = branches_[branch_num];
+            branch.Ks[0] = K0_;
+            branch.ks[0] = k0_;
+        }
     }
 
     if (verbose)
@@ -281,14 +281,14 @@ inline void iLQRHindsightSolver<xdim,udim>::bellman_backup(
 
     Matrix<xdim, xdim> A; 
     Matrix<xdim, udim> B;
-    linearize_dynamics(branch.split.dynamics, x, u, A, B);
+    linearize_dynamics(branch.dynamics, x, u, A, B);
 
     Matrix<xdim,xdim> Q;
     Matrix<udim,udim> R;
     Matrix<xdim,udim> P;
     Vector<xdim> g_x;
     Vector<udim> g_u;
-    quadratize_cost(branch.split.cost, t, x, u, Q, R, P, g_x, g_u);
+    quadratize_cost(branch.cost, t, x, u, Q, R, P, g_x, g_u);
 
     // Levenberg-Marquardt parameter for damping. 
     // ie. eigenvalue inflation matrix.

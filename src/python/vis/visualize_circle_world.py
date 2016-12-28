@@ -7,9 +7,9 @@ from math import cos, sin
 from IPython import embed
 
 
-def draw_circle(ax, pos_ang, radius, color):
+def draw_circle(ax, pos_ang, radius, color, label=None):
     pos = pos_ang[:2]
-    circ = plt.Circle(pos, radius, color=color)
+    circ = plt.Circle(pos, radius, color=color, label=label)
     ax.add_artist(circ);
     if len(pos_ang) == 3:
         ang = pos_ang[-1]
@@ -18,6 +18,7 @@ def draw_circle(ax, pos_ang, radius, color):
                 fc=np.asarray(color)*0.5, ec="k", 
                 head_width=radius/2., head_length=radius/2.)
         ax.add_artist(arr);
+    return circ
 
 
 def draw_env(ax, start_pos, end_pos, robot_radius, obs_poses, obs_radii):
@@ -29,7 +30,8 @@ def draw_env(ax, start_pos, end_pos, robot_radius, obs_poses, obs_radii):
         obs_pos = obs_poses[i]
         ax.add_artist(plt.Circle(obs_pos, obs_radius, color=(0.1,0.1,0.1)))
 
-def draw_traj(ax, states, robot_radius, color, skip = 3):
+def draw_traj(ax, states, robot_radius, color, label, skip = 3):
+    label_circ = draw_circle(ax, states[0], robot_radius, color=color, label=label)
     for i in xrange(len(states)):
         if i % skip != 0:
             continue;
@@ -37,23 +39,32 @@ def draw_traj(ax, states, robot_radius, color, skip = 3):
         draw_circle(ax, state, robot_radius, color=color)
         #ax.add_artist(plt.Circle(state, 0.5, color=color))
     #plt.plot(states[:,0], states[:,1], color=0.5*np.asarray(color), linewidth=3)
+    return label_circ
+
+def load_and_draw(ax, state_file, color, skip):
+    # First two rows are the start and end state. Rest is trajectory.
+    states = np.genfromtxt(state_file, delimiter=[13,13,13]);
+    start_pos = states[0,:]
+    end_pos = states[1,:]
+    states = states[2:,:]
+    label_circ = draw_traj(ax, states, robot_radius, color=color, label=state_file, skip=skip);
+    return label_circ
+
+
 
 if __name__ == "__main__":
     #obstacles_file = "../../build/obstacles.csv"
     #states_file = "../../build/states.csv"
     obstacles_file = "obstacles.csv"
-    states_file = "states.csv"
+    #states_file = ["states.csv"]
+    states_files = ["./ilqr_true_states.csv", "./hindsight_50-50_states.csv", "./hindsight_25-75_states.csv", "./hindsight_10-90_states.csv", "./argmax_states.csv"]
+
+    COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2), (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
 
     DRAW_Z = 0
     BASE_SCALE = 1.0
 
     robot_radius = 3.35/2.0;
-
-    # First two rows are the start and end state. Rest is trajectory.
-    states = np.genfromtxt(states_file, delimiter=[13,13,13]);
-    start_pos = states[0,:]
-    end_pos = states[1,:]
-    states = states[2:,:]
 
     world_dim = np.genfromtxt(obstacles_file, delimiter=[13,13,13,13], max_rows = 1);
 
@@ -62,15 +73,24 @@ if __name__ == "__main__":
     obs_poses = obstacles[:,:2]
     obs_radii = obstacles[:,2:]
 
+    states = np.genfromtxt(states_files[0], delimiter=[13,13,13]);
+    start_pos = states[0,:]
+    end_pos = states[1,:]
+
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
 
     draw_env(ax, start_pos, end_pos, robot_radius, obs_poses, obs_radii);
     skip = 3
-    draw_traj(ax, states, robot_radius, color=(0.1,0.3,0.8, 0.2), skip=skip);
+    labels = []
+    for i in range(len(states_files)):
+        color = COLORS[i]
+        label_circ = load_and_draw(ax, states_files[i], color, skip)
+        labels.append(label_circ)
 
     plt.axis('square')
     plt.axis(world_dim)
+    ax.legend(handles=labels)
     plt.tight_layout()
     plt.show()
 

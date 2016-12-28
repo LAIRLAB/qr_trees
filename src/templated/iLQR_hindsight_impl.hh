@@ -88,6 +88,9 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
     IS_GREATER(start_alpha, 0);
     IS_GREATER_EQUAL(t_offset, 0);
 
+    // Check that the branch probabilities sum to 1.
+    IS_ALMOST_EQUAL(total_branch_probability(), 1.0, 1e-3);
+
     const int num_branches = branches_.size(); 
     // If we are not doing a warm start, initialiew all the variables.
     if (!warm_start)
@@ -135,11 +138,18 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             IS_EQUAL(branch.uhat.size(), T);
             IS_EQUAL(branch.xhat.size(), T+1);
 
-            K0_ += branch.Ks.at(0);
-            k0_ += branch.ks.at(0);
+            K0_ += branch.probability * branch.Ks.at(0);
+            k0_ += branch.probability * branch.ks.at(0);
         }
-        K0_ /= static_cast<double>(num_branches);
-        k0_ /= static_cast<double>(num_branches);
+
+        for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+        {
+            HindsightBranch<xdim,udim> &branch = branches_[branch_num];
+            branch.Ks.at(0) = K0_;
+            branch.ks.at(0) = k0_;
+            branch.xhat.at(0) = xhat0_;
+            branch.uhat.at(0) = uhat0_;
+        }
     }
 
     // Holders used for the line search.
@@ -372,5 +382,23 @@ inline int iLQRHindsightSolver<xdim,udim>::timesteps() const
     return static_cast<int>(T); 
 }
 
+template<int xdim, int udim>
+inline void iLQRHindsightSolver<xdim,udim>::set_branch_probability(const int branch_num, const double probability)
+{
+    IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
+    IS_BETWEEN_INCLUSIVE(probability, 0, 1.0);
+    branches_[branch_num].probability = probability;
+}
+
+template<int xdim, int udim>
+inline double iLQRHindsightSolver<xdim,udim>::total_branch_probability()
+{
+    double total_prob = 0;
+    for (const auto &branch : branches_)
+    {
+        total_prob += branch.probability;
+    }
+    return total_prob;
+}
 
 } // namespace ilqr

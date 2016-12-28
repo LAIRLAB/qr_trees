@@ -64,12 +64,7 @@ public:
     {
         IS_GREATER(branches.size(), 0);
         branches_ = branches; 
-        double total_prob = 0;
-        for (const auto &branch : branches_)
-        {
-            total_prob += branch.probability;
-        }
-        IS_ALMOST_EQUAL(total_prob, 1.0, 1e-3);
+        IS_ALMOST_EQUAL(total_branch_probability(), 1.0, 1e-3);
     }
 
     // Computes the control at timestep 0 using K0_, k0_ that is
@@ -104,6 +99,10 @@ public:
     // Returns how many timesteps we have computed control policies for.
     inline int timesteps() const;
 
+    // Set the probability of a branch. Allows it to be done in place so  
+    // warm start solving can be used.
+    inline void set_branch_probability(const int branch_num, const double probability);
+
 private:
     std::vector<HindsightBranch<xdim,udim>> branches_;
 
@@ -118,9 +117,12 @@ private:
     // Performs one timestep of the bellman backup.
     // :param t - passed to the cost runction
     // :param mu - Levenberg-Marquardt parameter
-    void bellman_backup(const int branch_num, const int t, const double mu, 
+    inline void bellman_backup(const int branch_num, const int t, 
+        const double mu, 
         const Matrix<xdim,xdim> &Vt1, const Matrix<1,xdim> &Gt1, 
         Matrix<xdim,xdim> &Vt, Matrix<1,xdim> &Gt);
+
+    inline double total_branch_probability();
 
 };
 

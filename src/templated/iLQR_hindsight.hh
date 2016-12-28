@@ -98,7 +98,8 @@ public:
     inline void solve(const int T, const Vector<xdim> &x_init, 
             const Vector<udim> u_nominal, const double mu, 
             const int max_iters = 1000, bool verbose = false, 
-            const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0);
+            const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0,
+            const bool warm_start = false, const int t_offset = 0);
 
     // Returns how many timesteps we have computed control policies for.
     inline int timesteps() const;
@@ -107,12 +108,12 @@ private:
     std::vector<HindsightBranch<xdim,udim>> branches_;
 
     // Feedback control gains.
-    Matrix<udim, xdim> K0_;
-    Vector<udim> k0_;
+    Matrix<udim, xdim> K0_ = Matrix<udim, xdim>::Zero();
+    Vector<udim> k0_ = Vector<udim>::Zero();
 
     // Linearization points for the first timestep.
-    Vector<xdim> xhat0_;
-    Vector<udim> uhat0_;
+    Vector<xdim> xhat0_ = Vector<xdim>::Zero();
+    Vector<udim> uhat0_ = Vector<udim>::Zero();
 
     // Performs one timestep of the bellman backup.
     // :param t - passed to the cost runction

@@ -78,29 +78,68 @@ template<int xdim, int udim>
 inline void iLQRHindsightSolver<xdim,udim>::solve(const int T, 
         const Vector<xdim> &x_init, const Vector<udim> u_nominal, 
         const double mu, const int max_iters, bool verbose, 
-        const double cost_convg_ratio, const double start_alpha)
+        const double cost_convg_ratio, const double start_alpha,
+        const bool warm_start, const int t_offset)
 {
     IS_GREATER(T, 1);
     IS_GREATER_EQUAL(mu, 0);
     IS_GREATER(max_iters, 0);
     IS_GREATER(cost_convg_ratio, 0);
     IS_GREATER(start_alpha, 0);
+    IS_GREATER_EQUAL(t_offset, 0);
 
-    xhat0_ = Vector<xdim>::Zero();
-    uhat0_ = u_nominal;
-    K0_ = Matrix<udim,xdim>::Zero();
-    k0_ = Vector<udim>::Zero();
-
-    // Initialize each branch
     const int num_branches = branches_.size(); 
-    for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+    // If we are not doing a warm start, initialiew all the variables.
+    if (!warm_start)
     {
-        HindsightBranch<xdim,udim> &branch = branches_[branch_num];
-        branch.Ks = std::vector<Matrix<udim, xdim>>(T, Matrix<udim, xdim>::Zero());
-        branch.ks = std::vector<Vector<udim>>(T, Vector<udim>::Zero());
+        xhat0_ = Vector<xdim>::Zero();
+        uhat0_ = u_nominal;
+        K0_ = Matrix<udim,xdim>::Zero();
+        k0_ = Vector<udim>::Zero();
 
-        branch.uhat = std::vector<Vector<udim>>(T, u_nominal);
-        branch.xhat = std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero());
+        // Initialize each branch
+        for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+        {
+            HindsightBranch<xdim,udim> &branch = branches_[branch_num];
+            branch.Ks = std::vector<Matrix<udim, xdim>>(T, Matrix<udim, xdim>::Zero());
+            branch.ks = std::vector<Vector<udim>>(T, Vector<udim>::Zero());
+
+            branch.uhat = std::vector<Vector<udim>>(T, u_nominal);
+            branch.xhat = std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero());
+        }
+    }
+    else // if we warm start
+    {
+        // Since we need the first timestep to use the same x0, u0, K0, k0
+        // we can compute an average for K0 and k0 and set x0, u0 to x_init
+        // and u_nominal.
+        xhat0_ = x_init;
+        uhat0_ = u_nominal;
+        K0_.setZero(); k0_.setZero();
+
+        // Resize based on t_offset to make sure sizes are correct for variables.
+        for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+        {
+            HindsightBranch<xdim,udim> &branch = branches_[branch_num];
+            const int old_size = branch.Ks.size();
+            IS_GREATER(old_size, t_offset);
+            branch.Ks.erase(branch.Ks.begin(), branch.Ks.begin()+t_offset);
+            branch.ks.erase(branch.ks.begin(), branch.ks.begin()+t_offset);
+            branch.uhat.erase(branch.uhat.begin(), branch.uhat.begin()+t_offset);
+            branch.xhat.erase(branch.xhat.begin(), branch.xhat.begin()+t_offset);
+
+            // Confirm that the time horizon matches the size of requried
+            // variables. 
+            IS_EQUAL(branch.Ks.size(), T);
+            IS_EQUAL(branch.ks.size(), T);
+            IS_EQUAL(branch.uhat.size(), T);
+            IS_EQUAL(branch.xhat.size(), T+1);
+
+            K0_ += branch.Ks.at(0);
+            k0_ += branch.ks.at(0);
+        }
+        K0_ /= static_cast<double>(num_branches);
+        k0_ /= static_cast<double>(num_branches);
     }
 
     // Holders used for the line search.
@@ -108,6 +147,7 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
     std::vector<Vector<xdim>> xhat_new(T+1, Vector<xdim>::Zero());
 
     double old_cost = std::numeric_limits<double>::infinity();
+
     int iter = 0;
     for (iter = 0; iter < max_iters; ++iter)
     {
@@ -172,12 +212,13 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
                     << ", Old Cost: " << old_cost);
         }
 
+        old_cost = new_cost;
+
         if (cost_diff_ratio < cost_convg_ratio) 
         {
             break;
         }
 
-        old_cost = new_cost;
 
         // Backup each branch separately.
         std::vector<Matrix<xdim,xdim>> branch_V1(num_branches);

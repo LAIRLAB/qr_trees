@@ -1,6 +1,7 @@
 
 #include <experiments/simulators/diffdrive.hh>
 #include <experiments/simulators/circle_world.hh>
+#include <templated/iLQR.hh>
 #include <templated/iLQR_hindsight.hh>
 #include <utils/math_utils_temp.hh>
 #include <utils/debug_utils.hh>
@@ -137,10 +138,10 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 
     CircleWorld world(-30, 30, -30, 30);
     Eigen::Vector2d obstacle_pos(0, 0.0);
-	//constexpr double obs_radius = 5.0;
-    //world.add_obstacle(obs_radius, obstacle_pos);
+	constexpr double obs_radius = 5.0;
+    world.add_obstacle(obs_radius, obstacle_pos);
 
-    //world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
+    world.add_obstacle(obs_radius, Eigen::Vector2d(-13, -13));
     //world.add_obstacle(obs_radius, Eigen::Vector2d(-10, 3));
 
 	xT = Vector<STATE_DIM>::Zero();
@@ -196,9 +197,43 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     std::vector<Vector<STATE_DIM>> ilqr_states; 
     std::vector<Vector<CONTROL_DIM>> ilqr_controls;
     const double ilqr_total_cost = solver.forward_pass(0, x0, ilqr_states, ilqr_controls, 1.0);
-    SUCCESS("iLQR (mu=" << mu << ") Time: " 
+    SUCCESS("iLQR Hindsight (mu=" << mu << ") Time: " 
             << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
             << "\nTotal Cost: " << ilqr_total_cost);
+
+
+    // Check that the standard templated iLQR gives the same result 
+    // as the hindsight version with 1 branch on this nonlinear problem. 
+    WARN("Running standard templated iLQR...");
+    
+    ilqr_begin_time = clock();
+    ilqr::iLQRSolver<STATE_DIM,CONTROL_DIM> standard_solver(dynamics, cT, cost_t);
+    std::vector<Vector<STATE_DIM>> standard_ilqr_states; 
+    std::vector<Vector<CONTROL_DIM>> standard_ilqr_controls;
+    standard_solver.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+    const double standard_ilqr_total_cost = standard_solver.forward_pass(x0, 
+            standard_ilqr_states, standard_ilqr_controls, 1.0);
+    SUCCESS("iLQR Standard (mu=" << mu << ") Time: " 
+            << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC
+            << "\nTotal Cost: " << standard_ilqr_total_cost);
+
+
+    // Check that the total cost as well as the states and controls are 
+    // effectively the same.
+    IS_ALMOST_EQUAL(ilqr_total_cost, standard_ilqr_total_cost, 1e-5);
+    IS_TRUE(std::equal(ilqr_states.begin(), ilqr_states.end(), 
+                standard_ilqr_states.begin(),
+            [](const Vector<STATE_DIM> &a, const Vector<STATE_DIM>&b) { 
+                return math::is_equal<STATE_DIM>(a, b, 1e-5);
+            }));
+    IS_TRUE(std::equal(ilqr_controls.begin(), ilqr_controls.end(), 
+                standard_ilqr_controls.begin(),
+            [](const Vector<CONTROL_DIM> &a, const Vector<CONTROL_DIM>&b) { 
+                return math::is_equal<CONTROL_DIM>(a, b, 1e-5);
+            }));
+
+
+    SUCCESS("\nPASSED: Standard vs Hindsight iLQR produced almost same results!\n");
 
     // Run the control policy.
     constexpr double TOL =1e-4;

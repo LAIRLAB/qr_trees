@@ -23,3 +23,7 @@ target_link_libraries(test_ilqrtree_as_lqr ilqr_tree ilqr lqr helpers)
 
 add_executable(test_ilqr_templated test_ilqr_templated.cc)
 target_link_libraries(test_ilqr_templated utils lqr ilqr)
+
+add_executable(test_ilqr_hindsight_vs_ilqr test_ilqr_hindsight_vs_ilqr.cc)
+target_link_libraries(test_ilqr_hindsight_vs_ilqr simulators)
+

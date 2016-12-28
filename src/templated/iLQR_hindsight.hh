@@ -72,11 +72,14 @@ public:
         IS_ALMOST_EQUAL(total_prob, 1.0, 1e-3);
     }
 
+    // Computes the control at timestep 0 using K0_, k0_ that is
+    // shared across all branches.
+    inline Vector<udim> compute_first_control(const Vector<xdim> &x0) const;
+
     // Computes the control at timestep t at xt.
     // :param alpha - Backtracking line search parameter. 
     //      Setting to 1 gives regular forward pass.
-    inline Vector<udim> compute_control_stepsize(const int branch_num, const Vector<xdim> &xt, 
-            const int t, const double alpha) const;
+    inline Vector<udim> compute_control_stepsize(const int branch_num, const Vector<xdim> &xt, const int t, const double alpha) const;
 
     // :param alpha - Backtracking line search parameter. 
     //      Setting to 1 gives regular forward pass.
@@ -107,9 +110,9 @@ private:
     Matrix<udim, xdim> K0_;
     Vector<udim> k0_;
 
-    // Linearization points.
-    Vector<xdim> x0_;
-    Vector<udim> u0_;
+    // Linearization points for the first timestep.
+    Vector<xdim> xhat0_;
+    Vector<udim> uhat0_;
 
     // Performs one timestep of the bellman backup.
     // :param t - passed to the cost runction

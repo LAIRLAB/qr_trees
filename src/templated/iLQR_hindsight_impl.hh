@@ -8,6 +8,15 @@
 namespace ilqr
 {
 
+template<int xdim, int udim>
+inline Vector<udim> iLQRHindsightSolver<xdim,udim>::compute_first_control(const Vector<xdim> &x0) const
+{    
+    const Vector<xdim> zt = (x0 - xhat0_);
+    const Vector<udim> vt = K0_ * zt + k0_;
+
+    return Vector<udim>(vt + uhat0_);
+}
+
 // Computes the control at timestep t at xt.
 // :param alpha - Backtracking line search parameter. Setting to 1 gives regular forward pass.
 template<int xdim, int udim>
@@ -77,8 +86,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
     IS_GREATER(cost_convg_ratio, 0);
     IS_GREATER(start_alpha, 0);
 
-    x0_ = Vector<xdim>::Zero();
-    u0_ = u_nominal;
+    xhat0_ = Vector<xdim>::Zero();
+    uhat0_ = u_nominal;
     K0_ = Matrix<udim,xdim>::Zero();
     k0_ = Vector<udim>::Zero();
 
@@ -152,8 +161,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
         }
         //TODO If they are equal across all branches, we can just grab one 
         // instead of storing them all.
-        x0_ = x0s[0];
-        u0_ = u0s[0];
+        xhat0_ = x0s[0];
+        uhat0_ = u0s[0];
 
         if (verbose)
         {
@@ -217,8 +226,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             const double p = branch.probability;
 
             // Copy to the stack.
-            const Vector<xdim> x = x0_;
-            const Vector<udim> u = u0_;
+            const Vector<xdim> x = xhat0_;
+            const Vector<udim> u = uhat0_;
             
             Matrix<xdim, xdim> A; 
             Matrix<xdim, udim> B;
@@ -251,8 +260,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
             branch.Ks[0] = K0_;
             branch.ks[0] = k0_;
             // Confirm that these are already equal across branches.
-            IS_TRUE(math::is_equal(branch.xhat[0], x0_));
-            IS_TRUE(math::is_equal(branch.uhat[0], u0_));
+            IS_TRUE(math::is_equal(branch.xhat[0], xhat0_));
+            IS_TRUE(math::is_equal(branch.uhat[0], uhat0_));
         }
     }
 

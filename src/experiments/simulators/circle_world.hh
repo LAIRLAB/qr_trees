@@ -47,6 +47,8 @@ public:
 
     // Set the world boundary constraints.
     CircleWorld(double min_x, double max_x, double min_y, double max_y); 
+    // Same order as above, [min_x, max_x, min_y, max_y].
+    CircleWorld(const std::array<double, 4> &world_dims);
 
     void add_obstacle(const double radius, double x, double y);
     void add_obstacle(const double radius, const Eigen::Vector2d& position);

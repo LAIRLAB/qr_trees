@@ -47,7 +47,13 @@ CircleWorld::CircleWorld(double min_x, double max_x, double min_y, double max_y)
     IS_GREATER(max_y, min_y);
 }
 
+CircleWorld::CircleWorld(const std::array<double, 4> &world_dims)
+    : CircleWorld(world_dims[0], world_dims[1], world_dims[2], world_dims[3])
+{
+}
+
 void CircleWorld::add_obstacle(const double radius, double x, double y)
+
 {
     // Confirm at least part of the circle is within bounds.
     IS_GREATER_EQUAL(x, min_x_);

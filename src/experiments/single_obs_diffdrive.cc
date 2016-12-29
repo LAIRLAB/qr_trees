@@ -40,6 +40,19 @@ Vector<CONTROL_DIM> u_nominal;
 
 int T;
 
+enum class PolicyTypes
+{
+    // Compute an iLQR policy from a tree that splits only at the first timestep.
+    HINDSIGHT = 0,
+    // Compute the iLQR chain policy under the true dynamics. This should be the best solution.
+    TRUE_ILQR,
+    // Compute iLQR chain using the argmax(probabilities_from_filter) dynamics.
+    // This should perfectly when there is no noise in the observations.
+    ARGMAX_ILQR,
+    // Compute iLQR chain for each probabilistic split and take a weighted average of the controls.
+    PROB_WEIGHTED_CONTROL,
+};
+
 double obstacle_cost(const CircleWorld &world, const double robot_radius, const Vector<STATE_DIM> &xt)
 {
     Eigen::Vector2d robot_pos;
@@ -58,7 +71,7 @@ double obstacle_cost(const CircleWorld &world, const double robot_radius, const 
     return cost;
 }
 
-double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t, const CircleWorld &world, const double obs_cost)
+double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t, const CircleWorld &world)
 {
     double cost = 0;
 
@@ -77,7 +90,7 @@ double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t,
     cost += 0.05*x[State::dV_LEFT]*x[State::dV_LEFT];
     cost += 0.05*x[State::dV_RIGHT]*x[State::dV_RIGHT];
 
-    cost += obs_cost*obstacle_cost(world, robot_radius, x);
+    cost += obstacle_cost(world, robot_radius, x);
 
     return cost;
 }
@@ -139,13 +152,16 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
 {
     using namespace std::placeholders;
 
+    const PolicyTypes policy = PolicyTypes::HINDSIGHT;
+    const bool true_world_with_obs = false;
+
     T = 150;
 	const double dt = 1.0/6.0;
     IS_GREATER(T, 1);
     IS_GREATER(dt, 0);
 
     // Prior that there is an obstacle, prior there is no obstacle.
-    const std::array<double, 2> OBS_PRIOR = {{0.10, 0.90}};
+    const std::array<double, 2> OBS_PRIOR = {{0.25, 0.75}};
 
     std::array<double, 4> world_dims = {{-30, 30, -30, 30}};
 
@@ -196,11 +212,18 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 1;
 
-    auto ct_with_obs = std::bind(ct, _1, _2, _3, world_w_obs, 1.0);
-    auto ct_without_obs = std::bind(ct, _1, _2, _3, world_no_obs, 1.0);
+    // Setup the cost function with environments that have the obstacle and one
+    // that does not.
+    auto ct_with_obs = std::bind(ct, _1, _2, _3, world_w_obs);
+    auto ct_without_obs = std::bind(ct, _1, _2, _3, world_no_obs);
     
-    const auto &TRUE_COST_t = ct_with_obs;
-    const auto &TRUE_WORLD = world_w_obs;
+    auto TRUE_COST_t = ct_with_obs;
+    auto TRUE_WORLD = world_w_obs;
+    if (!true_world_with_obs)
+    {
+        TRUE_COST_t = ct_without_obs;
+        TRUE_WORLD = world_no_obs;
+    }
 
     std::array<double, 2> obs_probability= OBS_PRIOR;
 
@@ -222,16 +245,43 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     argmax_solver.set_branch_probability(argmax_branch, 1.0);
     argmax_solver.set_branch_probability(other_branch, 0.0);
 
+    // Weighted control approach.
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_w_obs(dynamics, cT, ct_with_obs, 1.0);
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_without_obs(dynamics, cT, ct_without_obs, 1.0);
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_w_obs({branch_w_obs});
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_without_obs({branch_without_obs});
 
-    // TODO Set the solver to use based on policy.
-    //ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> &solver = true_chain_solver;
-    //ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> &solver = argmax_solver;
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> &solver = hindsight_solver;
+    // TODO need default constructor or something to set it to.
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> *solver = nullptr; 
+    switch(policy)
+    {
+    case PolicyTypes::TRUE_ILQR:
+        solver = &true_chain_solver;
+        break;
+    case PolicyTypes::HINDSIGHT:
+        solver = &hindsight_solver;
+        break;
+    case PolicyTypes::ARGMAX_ILQR:
+        solver = &argmax_solver;
+        break;
+    case PolicyTypes::PROB_WEIGHTED_CONTROL:
+        // do nothing as this requires two separate solvers
+        break;
+    };
+
 
     std::vector<Vector<STATE_DIM>> states;
 
     clock_t ilqr_begin_time = clock();
-    solver.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+    if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
+    {
+        weighted_cntrl_w_obs.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+        weighted_cntrl_without_obs.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+    }
+    else
+    {
+        solver->solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+    }
     PRINT("Pre-solve" << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
     double rollout_cost = 0;
@@ -245,11 +295,22 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
         const int plan_horizon = T-t;
         //const int plan_horizon = std::min(T-t, MPC_HORIZON);
         
+        Vector<CONTROL_DIM> ut;
         ilqr_begin_time = clock();
-        solver.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+        if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
+        {
+            weighted_cntrl_w_obs.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+            weighted_cntrl_without_obs.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+            const Vector<CONTROL_DIM> ut_with_obs = weighted_cntrl_w_obs.compute_first_control(xt); 
+            const Vector<CONTROL_DIM> ut_without_obs = weighted_cntrl_without_obs.compute_first_control(xt); 
+            ut = obs_probability[0] * ut_with_obs + obs_probability[1] * ut_without_obs ;
+        }
+        else
+        {
+            solver->solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+            ut = solver->compute_first_control(xt); 
+        }
         PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
-
-        const Vector<CONTROL_DIM> ut = solver.compute_first_control(xt); 
 
         rollout_cost += TRUE_COST_t(xt, ut, t);
         const Vector<STATE_DIM> xt1 = dynamics(xt, ut);
@@ -265,21 +326,73 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
             WARN("OBSERVED OBSTACLE!, Distance: " << net_distance);
             obs_probability[0] = 1.0;
             obs_probability[1] = 0.0;
+            if (!true_world_with_obs)
+            {
+                obs_probability[0] = 0.0;
+                obs_probability[1] = 1.0;
+            }
         }
-        hindsight_solver.set_branch_probability(0, obs_probability[0]);
-        hindsight_solver.set_branch_probability(1, obs_probability[1]);
 
-        const int argmax_branch = get_argmax(obs_probability);
-        const int other_branch = (argmax_branch == 0) ? 1 : 0;
-        argmax_solver.set_branch_probability(argmax_branch, 1.0);
-        argmax_solver.set_branch_probability(other_branch, 0.0);
+        // Update parts required based on policy.
+        switch(policy)
+        {
+        case PolicyTypes::TRUE_ILQR:
+            break;
+        case PolicyTypes::HINDSIGHT:
+            solver->set_branch_probability(0, obs_probability[0]);
+            solver->set_branch_probability(1, obs_probability[1]);
+            break;
+        case PolicyTypes::ARGMAX_ILQR:
+        {
+            const int argmax_branch = get_argmax(obs_probability);
+            const int other_branch = (argmax_branch == 0) ? 1 : 0;
+            solver->set_branch_probability(argmax_branch, 1.0);
+            solver->set_branch_probability(other_branch, 0.0);
+            break;
+        }
+        case PolicyTypes::PROB_WEIGHTED_CONTROL:
+            // do nothing as this requires two separate solvers
+            break;
+        };
+
     }
     rollout_cost += cT(xt);
     DEBUG(" x_rollout(" << T-1 << ")= " << xt.transpose());
     DEBUG(" Total cost rollout: " << rollout_cost);
 
-    states_to_file(x0, xT, states, states_fname);
-    obstacles_to_file(TRUE_WORLD, obstacles_fname);
+    std::string policy_fname = states_fname;
+    switch(policy)
+    {
+    case PolicyTypes::TRUE_ILQR:
+        policy_fname = "ilqr_true";
+        break;
+    case PolicyTypes::HINDSIGHT:
+        policy_fname = "hindsight_" + std::to_string(static_cast<int>(OBS_PRIOR[0]*100)) + "-" + std::to_string(static_cast<int>(OBS_PRIOR[1]*100));
+        break;
+    case PolicyTypes::ARGMAX_ILQR:
+    {
+        policy_fname = "argmax_" + std::to_string(static_cast<int>(OBS_PRIOR[0]*100)) + "-" + std::to_string(static_cast<int>(OBS_PRIOR[1]*100));
+        break;
+    }
+    case PolicyTypes::PROB_WEIGHTED_CONTROL:
+        // do nothing as this requires two separate solvers
+        policy_fname = "weighted_" + std::to_string(static_cast<int>(OBS_PRIOR[0]*100)) + "-" + std::to_string(static_cast<int>(OBS_PRIOR[1]*100));
+        break;
+    };
+
+    std::string full_states_fname = policy_fname + "_" + states_fname;
+    full_states_fname = (true_world_with_obs) ? "has_obs_" + full_states_fname : "no_obs_" + full_states_fname;
+
+    states_to_file(x0, xT, states, full_states_fname );
+    SUCCESS("Wrote states to: " << full_states_fname);
+
+    std::string full_obstacles_fname = "has_obs_" + obstacles_fname;
+    if (!true_world_with_obs)
+    {
+        full_obstacles_fname = "no_obs_" + obstacles_fname;
+    }
+    obstacles_to_file(TRUE_WORLD, full_obstacles_fname);
+    SUCCESS("Wrote obstacles to: " << full_obstacles_fname);
 }
 
 int main()

@@ -1,3 +1,4 @@
+#include <experiments/single_obs_diffdrive.hh>
 
 #include <experiments/simulators/diffdrive.hh>
 #include <experiments/simulators/circle_world.hh>
@@ -39,19 +40,6 @@ Vector<STATE_DIM> x0; // Start state for 0th timestep.
 Vector<CONTROL_DIM> u_nominal; 
 
 int T;
-
-enum class PolicyTypes
-{
-    // Compute an iLQR policy from a tree that splits only at the first timestep.
-    HINDSIGHT = 0,
-    // Compute the iLQR chain policy under the true dynamics. This should be the best solution.
-    TRUE_ILQR,
-    // Compute iLQR chain using the argmax(probabilities_from_filter) dynamics.
-    // This should perfectly when there is no noise in the observations.
-    ARGMAX_ILQR,
-    // Compute iLQR chain for each probabilistic split and take a weighted average of the controls.
-    PROB_WEIGHTED_CONTROL,
-};
 
 double obstacle_cost(const CircleWorld &world, const double robot_radius, const Vector<STATE_DIM> &xt)
 {
@@ -148,20 +136,26 @@ int get_argmax(const std::array<double, 2> &prob)
 } // namespace
 
 
-void control_diffdrive(const std::string &states_fname, const std::string &obstacles_fname)
+double control_diffdrive(const PolicyTypes policy,
+        const bool true_world_with_obs,
+        const std::array<double, 2> &OBS_PRIOR,
+        std::string &state_output_fname,
+        std::string &obstacle_output_fname
+        )
 {
     using namespace std::placeholders;
 
-    const PolicyTypes policy = PolicyTypes::HINDSIGHT;
-    const bool true_world_with_obs = false;
+    const std::string states_fname = "states.csv";
+    const std::string obstacles_fname = "obstacles.csv";
 
-    T = 150;
+    T = 50;
 	const double dt = 1.0/6.0;
     IS_GREATER(T, 1);
     IS_GREATER(dt, 0);
 
-    // Prior that there is an obstacle, prior there is no obstacle.
-    const std::array<double, 2> OBS_PRIOR = {{0.25, 0.75}};
+    DEBUG("Running with policy \"" << to_string(policy)
+            << "\" with obs?= \""
+            << std::boolalpha << true_world_with_obs << "\"");
 
     std::array<double, 4> world_dims = {{-30, 30, -30, 30}};
 
@@ -192,7 +186,8 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity();
     QT(State::THETA, State::THETA) = 50.0;
     QT(State::dTHETA, State::dTHETA) = 5.0;
-    QT(State::dV_LEFT, State::dV_RIGHT) = 5.0;
+    QT(State::dV_LEFT, State::dV_LEFT) = 5.0;
+    QT(State::dV_RIGHT, State::dV_RIGHT) = 5.0;
 
 	R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
@@ -225,7 +220,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
         TRUE_WORLD = world_no_obs;
     }
 
-    std::array<double, 2> obs_probability= OBS_PRIOR;
+    std::array<double, 2> obs_probability = OBS_PRIOR;
 
     // Setup the true system solver.
     ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(dynamics, cT, TRUE_COST_t, 1.0);
@@ -282,7 +277,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
     {
         solver->solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
     }
-    PRINT("Pre-solve" << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
+    //PRINT("Pre-solve" << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
     double rollout_cost = 0;
     Vector<STATE_DIM> xt = x0;
@@ -310,7 +305,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
             solver->solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
             ut = solver->compute_first_control(xt); 
         }
-        PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
+        //PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
         rollout_cost += TRUE_COST_t(xt, ut, t);
         const Vector<STATE_DIM> xt1 = dynamics(xt, ut);
@@ -323,7 +318,7 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
                                     - robot_radius - obs_radius;
         if (net_distance < 2)
         {
-            WARN("OBSERVED OBSTACLE!, Distance: " << net_distance);
+            //WARN("OBSERVED OBSTACLE!, Distance: " << net_distance);
             obs_probability[0] = 1.0;
             obs_probability[1] = 0.0;
             if (!true_world_with_obs)
@@ -380,24 +375,22 @@ void control_diffdrive(const std::string &states_fname, const std::string &obsta
         break;
     };
 
-    std::string full_states_fname = policy_fname + "_" + states_fname;
-    full_states_fname = (true_world_with_obs) ? "has_obs_" + full_states_fname : "no_obs_" + full_states_fname;
+    state_output_fname = policy_fname + "_" + states_fname;
+    state_output_fname = (true_world_with_obs) 
+        ? "has_obs_" + state_output_fname 
+        : "no_obs_" + state_output_fname;
 
-    states_to_file(x0, xT, states, full_states_fname );
-    SUCCESS("Wrote states to: " << full_states_fname);
+    states_to_file(x0, xT, states, state_output_fname);
+    SUCCESS("Wrote states to: " << state_output_fname);
 
-    std::string full_obstacles_fname = "has_obs_" + obstacles_fname;
+    obstacle_output_fname = "has_obs_" + obstacles_fname;
     if (!true_world_with_obs)
     {
-        full_obstacles_fname = "no_obs_" + obstacles_fname;
+        obstacle_output_fname = "no_obs_" + obstacles_fname;
     }
-    obstacles_to_file(TRUE_WORLD, full_obstacles_fname);
-    SUCCESS("Wrote obstacles to: " << full_obstacles_fname);
+    obstacles_to_file(TRUE_WORLD, obstacle_output_fname);
+    SUCCESS("Wrote obstacles to: " << obstacle_output_fname);
+    
+    return rollout_cost;
 }
 
-int main()
-{
-    control_diffdrive("states.csv", "obstacles.csv");
-
-    return 0;
-}

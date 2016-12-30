@@ -16,5 +16,8 @@ target_link_libraries(ilqr_templated_pendulum simulators)
 add_executable(ilqr_templated_diffdrive ilqr_templated_diffdrive.cc)
 target_link_libraries(ilqr_templated_diffdrive simulators)
 
-add_executable(single_obs_diffdrive single_obs_diffdrive.cc)
+add_library(single_obs_diffdrive SHARED single_obs_diffdrive.cc)
 target_link_libraries(single_obs_diffdrive simulators)
+
+add_executable(run_single_obs_diffdrive run_single_obs_diffdrive.cc)
+target_link_libraries(run_single_obs_diffdrive single_obs_diffdrive)

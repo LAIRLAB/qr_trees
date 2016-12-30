@@ -16,5 +16,7 @@ include_directories("${PROJECT_SOURCE_DIR}/pybind11/include")
 # We have to specifiy a binary directory since the 
 # subdirectory is higher level.
 add_subdirectory("../../pybind11" "../../pybind11/build")
-pybind11_add_module(bind_test bind_test.cc)
+#pybind11_add_module(bind_test bind_test.cc)
+pybind11_add_module(ilqr_diffdrive ilqr_diffdrive.cc)
+target_link_libraries(ilqr_diffdrive single_obs_diffdrive)
 

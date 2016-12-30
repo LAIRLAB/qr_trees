@@ -103,11 +103,11 @@ void quadratize_cost(const CostFunc &cost_func,
 
     Q = (Q + Q.transpose())/2.0;
     Q = math::project_to_psd(Q, 1e-11);
-    math::check_psd(Q, 1e-12);
+    //math::check_psd(Q, 1e-12);
 
     // Control terms.
     R = math::project_to_psd(R, 1e-8);
-    math::check_psd(R, 1e-9);
+    //math::check_psd(R, 1e-9);
 }
 
 template<int _xdim, typename CostFunc>

@@ -6,6 +6,7 @@ from math import cos, sin
 
 from IPython import embed
 
+robot_radius = 3.35/2.0;
 
 def draw_circle(ax, pos_ang, radius, color, label=None):
     pos = pos_ang[:2]
@@ -50,21 +51,15 @@ def load_and_draw(ax, state_file, color, skip):
     label_circ = draw_traj(ax, states, robot_radius, color=color, label=state_file, skip=skip);
     return label_circ
 
-
-
-if __name__ == "__main__":
-    #obstacles_file = "../../build/obstacles.csv"
-    #states_file = "../../build/states.csv"
-    obstacles_file = "obstacles.csv"
-    #states_file = ["states.csv"]
-    states_files = ["./ilqr_true_states.csv", "./hindsight_50-50_states.csv", "./hindsight_25-75_states.csv", "./hindsight_10-90_states.csv", "./argmax_states.csv"]
-
-    COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2), (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
+def parse_draw_files(states_files, obstacles_file, COLORS = None, show = True):
+    if COLORS is None:
+        COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2), (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
+    if len(COLORS) < len(states_files):
+        for i in range(len(states_files) - len(COLORS)):
+            COLORS.append(tuple(np.random.random(3)) + (0.2,))
 
     DRAW_Z = 0
     BASE_SCALE = 1.0
-
-    robot_radius = 3.35/2.0;
 
     world_dim = np.genfromtxt(obstacles_file, delimiter=[13,13,13,13], max_rows = 1);
 
@@ -92,7 +87,22 @@ if __name__ == "__main__":
     plt.axis(world_dim)
     ax.legend(handles=labels)
     plt.tight_layout()
-    plt.show()
+    if show:
+        plt.show()
+    return ax
 
+
+
+if __name__ == "__main__":
+    #obstacles_file = "../../build/obstacles.csv"
+    #states_file = "../../build/states.csv"
+    #obstacles_file = "obstacles.csv"
+    obstacles_file = "./has_obs_obstacles.csv"
+    #states_file = ["states.csv"]
+    #states_files = ["./ilqr_true_states.csv", "./hindsight_50-50_states.csv", "./hindsight_25-75_states.csv", "./hindsight_10-90_states.csv", "./argmax_states.csv"]
+    #states_files = ["./ilqr_true_states.csv", "./hindsight_10-90_states.csv", "./weighted_10-90_states.csv"]
+    states_files = ["./has_obs_ilqr_true_states.csv", "./no_obs_ilqr_true_states.csv"]
+
+    parse_draw_files(states_files, obstacles_file);
 
     print('hi')

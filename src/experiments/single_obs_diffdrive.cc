@@ -135,9 +135,9 @@ int get_argmax(const std::array<double, 2> &prob)
 
 } // namespace
 
-
 double control_diffdrive(const PolicyTypes policy,
-        const bool true_world_with_obs,
+        const CircleWorld &true_world,
+        const CircleWorld &other_world,
         const std::array<double, 2> &OBS_PRIOR,
         std::string &state_output_fname,
         std::string &obstacle_output_fname
@@ -148,23 +148,22 @@ double control_diffdrive(const PolicyTypes policy,
     const std::string states_fname = "states.csv";
     const std::string obstacles_fname = "obstacles.csv";
 
+    const std::array<double, 4> world_dims = true_world.dimensions();
+    IS_TRUE(std::equal(world_dims.begin(), world_dims.begin(), true_world.dimensions().begin()));
+
+    // Currently each can only have 1 obstacle.
+    IS_LESS_EQUAL(true_world.obstacles().size(), 1);
+    IS_LESS_EQUAL(other_world.obstacles().size(), 1);
+    
+
     T = 50;
 	const double dt = 1.0/6.0;
     IS_GREATER(T, 1);
     IS_GREATER(dt, 0);
 
     DEBUG("Running with policy \"" << to_string(policy)
-            << "\" with obs?= \""
-            << std::boolalpha << true_world_with_obs << "\"");
-
-    std::array<double, 4> world_dims = {{-30, 30, -30, 30}};
-
-    CircleWorld world_w_obs(world_dims);
-    CircleWorld world_no_obs(world_dims);
-
-    const Eigen::Vector2d obstacle_pos(0, 0.0);
-	constexpr double obs_radius = 5.0;
-    world_w_obs.add_obstacle(obs_radius, obstacle_pos);
+            << "\" with num obs in true= \"" 
+            << true_world.obstacles().size() << "\"");
 
 	xT = Vector<STATE_DIM>::Zero();
 	xT[State::POS_X] = 0;
@@ -209,42 +208,34 @@ double control_diffdrive(const PolicyTypes policy,
 
     // Setup the cost function with environments that have the obstacle and one
     // that does not.
-    auto ct_with_obs = std::bind(ct, _1, _2, _3, world_w_obs);
-    auto ct_without_obs = std::bind(ct, _1, _2, _3, world_no_obs);
+    auto ct_true_world = std::bind(ct, _1, _2, _3, true_world);
+    auto ct_other_world = std::bind(ct, _1, _2, _3, other_world);
     
-    auto TRUE_COST_t = ct_with_obs;
-    auto TRUE_WORLD = world_w_obs;
-    if (!true_world_with_obs)
-    {
-        TRUE_COST_t = ct_without_obs;
-        TRUE_WORLD = world_no_obs;
-    }
-
     std::array<double, 2> obs_probability = OBS_PRIOR;
 
     // Setup the true system solver.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(dynamics, cT, TRUE_COST_t, 1.0);
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(dynamics, cT, ct_true_world, 1.0);
     ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> true_chain_solver({true_branch});
 
     // Setup the "our method" hindsight optimization approach.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_w_obs(dynamics, cT, ct_with_obs, obs_probability[0]);
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_without_obs(dynamics, cT, ct_without_obs, obs_probability[1]);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_w_obs, hindsight_without_obs});
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_world_1, hindsight_world_2});
 
     // The argmax approach.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> argmax_w_obs(dynamics, cT, ct_with_obs, obs_probability[0]);
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> argmax_without_obs(dynamics, cT, ct_without_obs, obs_probability[1]);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> argmax_solver({argmax_w_obs, argmax_without_obs});
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> argmax_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> argmax_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> argmax_solver({argmax_world_1, argmax_world_2});
     const int argmax_branch = get_argmax(obs_probability);
     const int other_branch = (argmax_branch == 0) ? 1 : 0;
     argmax_solver.set_branch_probability(argmax_branch, 1.0);
     argmax_solver.set_branch_probability(other_branch, 0.0);
 
     // Weighted control approach.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_w_obs(dynamics, cT, ct_with_obs, 1.0);
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_without_obs(dynamics, cT, ct_without_obs, 1.0);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_w_obs({branch_w_obs});
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_without_obs({branch_without_obs});
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_world_1(dynamics, cT, ct_true_world, 1.0);
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_world_2(dynamics, cT, ct_other_world, 1.0);
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_1({branch_world_1});
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_2({branch_world_2});
 
     // TODO need default constructor or something to set it to.
     ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> *solver = nullptr; 
@@ -270,8 +261,8 @@ double control_diffdrive(const PolicyTypes policy,
     clock_t ilqr_begin_time = clock();
     if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
     {
-        weighted_cntrl_w_obs.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
-        weighted_cntrl_without_obs.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+        weighted_cntrl_world_1.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+        weighted_cntrl_world_2.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
     }
     else
     {
@@ -294,10 +285,10 @@ double control_diffdrive(const PolicyTypes policy,
         ilqr_begin_time = clock();
         if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
         {
-            weighted_cntrl_w_obs.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
-            weighted_cntrl_without_obs.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
-            const Vector<CONTROL_DIM> ut_with_obs = weighted_cntrl_w_obs.compute_first_control(xt); 
-            const Vector<CONTROL_DIM> ut_without_obs = weighted_cntrl_without_obs.compute_first_control(xt); 
+            weighted_cntrl_world_1.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+            weighted_cntrl_world_2.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+            const Vector<CONTROL_DIM> ut_with_obs = weighted_cntrl_world_1.compute_first_control(xt); 
+            const Vector<CONTROL_DIM> ut_without_obs = weighted_cntrl_world_2.compute_first_control(xt); 
             ut = obs_probability[0] * ut_with_obs + obs_probability[1] * ut_without_obs ;
         }
         else
@@ -307,24 +298,38 @@ double control_diffdrive(const PolicyTypes policy,
         }
         //PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
-        rollout_cost += TRUE_COST_t(xt, ut, t);
+        rollout_cost += ct_true_world(xt, ut, t);
         const Vector<STATE_DIM> xt1 = dynamics(xt, ut);
 
         xt = xt1;
         states.push_back(xt);
 
         const Eigen::Vector2d robot_position(xt[State::POS_X], xt[State::POS_Y]);
-        const double net_distance = (robot_position - obstacle_pos).norm() 
-                                    - robot_radius - obs_radius;
-        if (net_distance < 2)
+        //int num_true_obs_seen = 0;
+        for (const auto obstacle : true_world.obstacles())
         {
-            //WARN("OBSERVED OBSTACLE!, Distance: " << net_distance);
-            obs_probability[0] = 1.0;
-            obs_probability[1] = 0.0;
-            if (!true_world_with_obs)
+            const double net_distance = (robot_position - obstacle.position()).norm() 
+                                        - robot_radius - obstacle.radius();
+            // If we see the obstacle, then we know this world is probably true.
+            if (net_distance < 2)
             {
-                obs_probability[0] = 0.0;
-                obs_probability[1] = 1.0;
+                //++num_true_obs_seen;
+                obs_probability[0] = 1.0;
+                obs_probability[1] = 0.0;
+            }
+        }
+        //int num_other_obs_seen = 0; // TODO can maybe use this with the discrete filter?
+        for (const auto obstacle : other_world.obstacles())
+        {
+            const double net_distance = (robot_position - obstacle.position()).norm() 
+                                        - robot_radius - obstacle.radius();
+            // If we get close to the the obstacle in the other_world, then we know the other world is probably 
+            // false since the "sensor" didn't pick it up.
+            if (net_distance < 2)
+            {
+                //++num_other_obs_seen;
+                obs_probability[0] = 1.0;
+                obs_probability[1] = 0.0;
             }
         }
 
@@ -375,22 +380,41 @@ double control_diffdrive(const PolicyTypes policy,
         break;
     };
 
-    state_output_fname = policy_fname + "_" + states_fname;
-    state_output_fname = (true_world_with_obs) 
-        ? "has_obs_" + state_output_fname 
-        : "no_obs_" + state_output_fname;
+    state_output_fname = state_output_fname + "_" +  policy_fname + "_" + states_fname;
 
     states_to_file(x0, xT, states, state_output_fname);
     SUCCESS("Wrote states to: " << state_output_fname);
 
-    obstacle_output_fname = "has_obs_" + obstacles_fname;
-    if (!true_world_with_obs)
-    {
-        obstacle_output_fname = "no_obs_" + obstacles_fname;
-    }
-    obstacles_to_file(TRUE_WORLD, obstacle_output_fname);
+    obstacle_output_fname = obstacle_output_fname + "_" + obstacles_fname;
+    obstacles_to_file(true_world, obstacle_output_fname);
     SUCCESS("Wrote obstacles to: " << obstacle_output_fname);
     
     return rollout_cost;
 }
 
+double single_obs_control_diffdrive(const PolicyTypes policy,
+        bool true_world_with_obs,
+        const std::array<double, 2> &OBS_PRIOR,
+        std::string &state_output_fname,
+        std::string &obstacle_output_fname
+        )
+{
+    std::array<double, 4> world_dims = {{-30, 30, -30, 30}};
+    CircleWorld true_world(world_dims);
+    CircleWorld other_world(world_dims);
+
+    const Eigen::Vector2d obstacle_pos(0, 0.0);
+	constexpr double obs_radius = 5.0;
+    if (true_world_with_obs)
+    {
+        true_world.add_obstacle(obs_radius, obstacle_pos);
+    }
+    else
+    {
+        other_world.add_obstacle(obs_radius, obstacle_pos);
+    }
+        
+    const double cost_to_go = control_diffdrive(policy, true_world, other_world, 
+            OBS_PRIOR, state_output_fname, obstacle_output_fname); 
+    return cost_to_go;
+}

@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <experiments/simulators/circle_world.hh>
+
 #include <array>
 #include <string>
 
@@ -33,11 +35,19 @@ std::string to_string(const PolicyTypes policy_type)
     return "Unrecognized policy type. Error.";
 }
 
-// :param OBS_PRIOR - Prior that there is an obstacle, prior there is no obstacle.
+// :param OBS_PRIOR - Prior for the policy that true_world is true, prior for
+//                    policy that the other_world is true.
 double control_diffdrive(const PolicyTypes policy, 
-        const bool true_world_with_obs, 
+        const circle_world::CircleWorld &true_world,
+        const circle_world::CircleWorld &other_world,
         const std::array<double, 2> &OBS_PRIOR,
         std::string &state_output_fname,
         std::string &obstacle_output_fname
         );
 
+double single_obs_control_diffdrive(const PolicyTypes policy,
+        bool true_world_with_obs,
+        const std::array<double, 2> &OBS_PRIOR,
+        std::string &state_output_fname,
+        std::string &obstacle_output_fname
+        );

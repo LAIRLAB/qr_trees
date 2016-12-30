@@ -12,9 +12,9 @@ int main()
 
     std::string state_output_fname, obstacle_output_fname;
 
-    cost_to_go = control_diffdrive(PolicyTypes::TRUE_ILQR, true, probs, state_output_fname, obstacle_output_fname);
+    cost_to_go = single_obs_control_diffdrive(PolicyTypes::TRUE_ILQR, true, probs, state_output_fname, obstacle_output_fname);
     PRINT("\n");
-    cost_to_go = control_diffdrive(PolicyTypes::TRUE_ILQR, false, probs, state_output_fname, obstacle_output_fname);
+    cost_to_go = single_obs_control_diffdrive(PolicyTypes::TRUE_ILQR, false, probs, state_output_fname, obstacle_output_fname);
     PRINT("\n");
 
     //cost_to_go = control_diffdrive(PolicyTypes::PROB_WEIGHTED_CONTROL, true, probs);

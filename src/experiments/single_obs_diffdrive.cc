@@ -202,7 +202,7 @@ double control_diffdrive(const PolicyTypes policy,
 
     constexpr bool verbose = false;
     constexpr int max_iters = 300;
-    constexpr double mu = 0.80;
+    constexpr double mu = 0.25;
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 1;
 

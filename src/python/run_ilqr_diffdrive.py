@@ -16,10 +16,10 @@ if __name__ == "__main__":
     w1 = ilqr.CircleWorld(world_dims)
     w2 = ilqr.CircleWorld(world_dims)
 
-    obs_pos_1 = [-2.5, 0.0]
-    obs_pos_2 = [2.5, 0.0]
+    obs_pos_1 = [-2, 0.0]
+    obs_pos_2 = [2, 0.0]
 
-    obs_radius = 8.0
+    obs_radius = 10.0
     obstacle_1 = ilqr.Circle(obs_radius, obs_pos_1);
     obstacle_2 = ilqr.Circle(obs_radius, obs_pos_2);
 

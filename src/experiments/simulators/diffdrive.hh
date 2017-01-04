@@ -1,7 +1,10 @@
 //
 // Dynamics of Differential Drive circle robot. 
 // Based on the dynamics in: http://arl.cs.utah.edu/pubs/ACC2014.pdf
-// 
+//
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
 
 # pragma once
 

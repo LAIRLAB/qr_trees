@@ -1,3 +1,8 @@
+//
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
+
 #pragma once
 
 #include <utils/math_utils_temp.hh>

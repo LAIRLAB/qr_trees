@@ -1,4 +1,10 @@
+//
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
+
 #pragma once
+
 #include <utils/debug_utils.hh>
 
 #include <algorithm>

@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+#
+# Arun Venkatraman (arunvenk@cs.cmu.edu)
+# December 2016
+#
+
 from IPython import embed
 
 import lib.ilqr_diffdrive as ilqr

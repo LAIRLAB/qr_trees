@@ -1,6 +1,9 @@
 //
 // Underlying iLQRNode for Tree-iLQR.
 //
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
 
 #include <ilqr/ilqr_node.hh>
 

@@ -1,3 +1,8 @@
+//
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
+
 #include <ilqr/ilqr_tree.hh>
 
 #include <utils/debug_utils.hh>

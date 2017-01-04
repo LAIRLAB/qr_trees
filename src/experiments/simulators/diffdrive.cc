@@ -1,3 +1,7 @@
+//
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
 
 #include <experiments/simulators/diffdrive.hh>
 

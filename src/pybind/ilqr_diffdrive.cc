@@ -2,6 +2,9 @@
 // Simple example of using pybind based on http://pybind11.readthedocs.io/en/latest/basics.html 
 // but extended to use the Numpy-Eigen binding.
 //
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
 
 #include <pybind11/pybind11.h>
 

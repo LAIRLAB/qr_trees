@@ -1,6 +1,9 @@
 //
 // Implements Tree-iLQR.
 //
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
 
 #pragma once
 

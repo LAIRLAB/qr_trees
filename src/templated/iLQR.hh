@@ -1,6 +1,9 @@
 // 
 // Implements iLQR (on a traditional chain) for nonlinear dynamics and cost.
 //
+// Arun Venkatraman (arunvenk@cs.cmu.edu)
+// December 2016
+//
 
 #pragma once
 

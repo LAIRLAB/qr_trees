@@ -3,7 +3,7 @@
 #    LQR for Trees                                      #
 #    - Arun Venkatraman    <arunvenk@cs.cmu.edu>        #
 #                                                       #
-#    Created:  March 2016                               #
+#    Created:  Fall 2016                                #
 #                                                       #
 #########################################################
 

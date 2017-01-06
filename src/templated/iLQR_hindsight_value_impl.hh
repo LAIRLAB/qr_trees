@@ -141,7 +141,7 @@ inline void iLQRHindsightValueSolver<xdim,udim>::solve(const int T,
             branch.uhat.erase(branch.uhat.begin(), branch.uhat.begin()+t_offset);
             branch.xhat.erase(branch.xhat.begin(), branch.xhat.begin()+t_offset);
 
-            // Confirm that the time horizon matches the size of requried
+            // Confirm that the time horizon matches the size of required
             // variables. 
             IS_EQUAL(branch.Ks.size(), T);
             IS_EQUAL(branch.ks.size(), T);
@@ -160,6 +160,15 @@ inline void iLQRHindsightValueSolver<xdim,udim>::solve(const int T,
             branch.xhat.at(0) = xhat0_;
             branch.uhat.at(0) = uhat0_;
         }
+    }
+
+    // Initialize the storage for the value function terms.
+    for (int branch_num = 0; branch_num < num_branches; ++branch_num)
+    {
+        HindsightBranchValue<xdim,udim> &branch = branches_[branch_num];
+        branch.Vs.resize(T+1); 
+        branch.Gs.resize(T+1);
+        branch.Ws.resize(T+1);
     }
 
     // Holders used for the line search.

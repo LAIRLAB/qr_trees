@@ -5,10 +5,6 @@ add_executable(ilqr_tree_pendulum ilqr_tree_pendulum.cc)
 target_link_libraries(ilqr_tree_pendulum 
     ilqr_tree ilqr utils simulators helpers policies)
 
-add_executable(single_obs_circle_world single_obs_circle_world.cc)
-target_link_libraries(single_obs_circle_world
-    ilqr_tree ilqr utils simulators helpers policies)
-
 # Templatized ilQR versions
 add_executable(ilqr_templated_pendulum ilqr_templated_pendulum.cc)
 target_link_libraries(ilqr_templated_pendulum simulators)
@@ -19,5 +15,13 @@ target_link_libraries(ilqr_templated_diffdrive simulators)
 add_library(single_obs_diffdrive SHARED single_obs_diffdrive.cc)
 target_link_libraries(single_obs_diffdrive simulators)
 
+add_library(shared_autonomy_circle SHARED shared_autonomy_circle.cc)
+target_link_libraries(shared_autonomy_circle simulators)
+
 add_executable(run_single_obs_diffdrive run_single_obs_diffdrive.cc)
 target_link_libraries(run_single_obs_diffdrive single_obs_diffdrive)
+
+add_executable(run_shared_autonomy_circle run_shared_autonomy_circle.cc)
+target_link_libraries(run_shared_autonomy_circle shared_autonomy_circle)
+
+

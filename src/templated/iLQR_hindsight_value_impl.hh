@@ -85,7 +85,7 @@ inline void iLQRHindsightValueSolver<xdim,udim>::solve(const int T,
         const Vector<xdim> &x_init, const Vector<udim> u_nominal, 
         const double mu, const int max_iters, bool verbose, 
         const double cost_convg_ratio, const double start_alpha,
-        const bool store_value_fnc, const bool warm_start, const int t_offset)
+        const bool warm_start, const int t_offset)
 {
     IS_GREATER(T, 1);
     IS_GREATER_EQUAL(mu, 0);
@@ -115,10 +115,6 @@ inline void iLQRHindsightValueSolver<xdim,udim>::solve(const int T,
 
             branch.uhat = std::vector<Vector<udim>>(T, u_nominal);
             branch.xhat = std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero());
-
-            branch.Vs = std::vector<Matrix<xdim, xdim>>(T+1, Matrix<xdim, xdim>::Zero());
-            branch.Gs = std::vector<Matrix<1, xdim>>(T+1, Matrix<1, xdim>::Zero());
-            branch.Ws = std::vector<double>(T+1, 0.0);
         }
     }
     else // if we warm start
@@ -251,13 +247,11 @@ inline void iLQRHindsightValueSolver<xdim,udim>::solve(const int T,
         // Backup each branch separately.
         for (int branch_num = 0; branch_num < num_branches; ++branch_num)
         {
-            const HindsightBranchValue<xdim,udim> &branch = branches_[branch_num];
-            quadratize_cost(branch.final_cost, branch.xhat.back(), branch.Vs.at(T), branch.Gs.at(T));
+            HindsightBranchValue<xdim,udim> &branch = branches_[branch_num];
+            Vector<xdim> Gt1;
+            quadratize_cost(branch.final_cost, branch.xhat.back(), branch.Vs[T], Gt1);
+            branch.Gs.at(T) = Gt1.transpose();
             branch.Ws.at(T) = branch.final_cost(branch.xhat.back());
-
-            // Storage for backing up the value function.
-            Matrix<xdim, xdim> Vt; 
-            Matrix<1, xdim> Gt;
 
             // Backwards pass for this branch. 
             // We do it until t > =0 for shared autonomy vs for regular
@@ -265,8 +259,9 @@ inline void iLQRHindsightValueSolver<xdim,udim>::solve(const int T,
             // timestep separately.
             for (int t = T-1; t >= 0; --t)
             {
-                bellman_backup(branch_num, t, mu, branch.Vs.at(t+1), branch.Gs.at(t+1), branch.Ws.at(t+1),
-                        branch.Vs.at(t), branch.Vs.at(t), branch.Ws.at(t));
+                bellman_backup(branch_num, t, mu,
+                        branch.Vs[t+1], branch.Gs[t+1], branch.Ws[t+1],
+                        branch.Vs[t], branch.Gs[t], branch.Ws[t]);
             }
         }
 

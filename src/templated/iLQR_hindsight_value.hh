@@ -102,7 +102,7 @@ public:
     inline void solve(const int T, const Vector<xdim> &x_init, 
             const Vector<udim> u_nominal, const double mu, 
             const int max_iters = 1000, bool verbose = false, 
-            const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0, const bool store_value_fnc = false,
+            const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0,
             const bool warm_start = false, const int t_offset = 0);
 
     // Returns how many timesteps we have computed control policies for.
@@ -128,8 +128,7 @@ private:
     // Performs one timestep of the bellman backup.
     // :param t - passed to the cost runction
     // :param mu - Levenberg-Marquardt parameter
-    inline void bellman_backup(const int branch_num, const int t, 
-        const double mu, 
+    inline void bellman_backup(const int branch_num, const int t, const double mu, 
         const Matrix<xdim,xdim> &Vt1, const Matrix<1,xdim> &Gt1, const double Wt1,
         Matrix<xdim,xdim> &Vt, Matrix<1,xdim> &Gt, double &Wt);
 

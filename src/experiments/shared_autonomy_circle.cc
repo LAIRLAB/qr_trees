@@ -2,7 +2,7 @@
 
 #include <experiments/simulators/diffdrive.hh>
 #include <experiments/simulators/circle_world.hh>
-#include <templated/iLQR_hindsight.hh>
+#include <templated/iLQR_hindsight_value.hh>
 #include <utils/math_utils_temp.hh>
 #include <utils/debug_utils.hh>
 
@@ -214,31 +214,31 @@ double control_shared_autonomy(const PolicyTypes policy,
     std::array<double, 2> obs_probability = OBS_PRIOR;
 
     // Setup the true system solver.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(dynamics, cT, ct_true_world, 1.0);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> true_chain_solver({true_branch});
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> true_branch(dynamics, cT, ct_true_world, 1.0);
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> true_chain_solver({true_branch});
 
     // Setup the "our method" hindsight optimization approach.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_world_1, hindsight_world_2});
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> hindsight_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> hindsight_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_world_1, hindsight_world_2});
 
     // The argmax approach.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> argmax_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> argmax_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> argmax_solver({argmax_world_1, argmax_world_2});
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> argmax_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> argmax_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> argmax_solver({argmax_world_1, argmax_world_2});
     const int argmax_branch = get_argmax(obs_probability);
     const int other_branch = (argmax_branch == 0) ? 1 : 0;
     argmax_solver.set_branch_probability(argmax_branch, 1.0);
     argmax_solver.set_branch_probability(other_branch, 0.0);
 
     // Weighted control approach.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_world_1(dynamics, cT, ct_true_world, 1.0);
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> branch_world_2(dynamics, cT, ct_other_world, 1.0);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_1({branch_world_1});
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_2({branch_world_2});
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> branch_world_1(dynamics, cT, ct_true_world, 1.0);
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> branch_world_2(dynamics, cT, ct_other_world, 1.0);
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_1({branch_world_1});
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_2({branch_world_2});
 
     // TODO need default constructor or something to set it to.
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> *solver = nullptr; 
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> *solver = nullptr; 
     switch(policy)
     {
     case PolicyTypes::TRUE_ILQR:

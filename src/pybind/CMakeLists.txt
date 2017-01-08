@@ -20,3 +20,9 @@ add_subdirectory("../../pybind11" "../../pybind11/build")
 pybind11_add_module(ilqr_diffdrive ilqr_diffdrive.cc)
 target_link_libraries(ilqr_diffdrive single_obs_diffdrive)
 
+pybind11_add_module(sim_objects sim_objects.cc)
+target_link_libraries(sim_objects simulators)
+
+pybind11_add_module(pusher_world pusher_world.cc)
+target_link_libraries(pusher_world simulators)
+

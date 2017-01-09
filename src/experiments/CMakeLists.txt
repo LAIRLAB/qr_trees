@@ -19,5 +19,8 @@ target_link_libraries(ilqr_templated_diffdrive simulators)
 add_library(single_obs_diffdrive SHARED single_obs_diffdrive.cc)
 target_link_libraries(single_obs_diffdrive simulators)
 
+add_library(circle_pusher SHARED circle_pusher.cc)
+target_link_libraries(circle_pusher simulators)
+
 add_executable(run_single_obs_diffdrive run_single_obs_diffdrive.cc)
 target_link_libraries(run_single_obs_diffdrive single_obs_diffdrive)

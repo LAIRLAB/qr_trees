@@ -39,8 +39,18 @@ def draw_world(ax, world, show=True):
         plt.draw()
         plt.show(block=False);
 
+def draw_traj(ax, states, robot_radius, color, label, skip = 3):
+    label_circ = vis.draw_circle(ax, states[0], robot_radius, color=color, label=label)
+    for i in xrange(len(states)):
+        if i % skip != 0:
+            continue;
+        state = states[i]
+        vis.draw_circle(ax, state, robot_radius, color=color)
+        #ax.add_artist(plt.Circle(state, 0.5, color=color))
+    #plt.plot(states[:,0], states[:,1], color=0.5*np.asarray(color), linewidth=3)
+    return label_circ
 
-if __name__ == "__main__":
+def test_pusher_sim():
     T = 10;
 
     dt = 1
@@ -80,6 +90,7 @@ if __name__ == "__main__":
             break
 
         if t == int(T/2.):
+            x0[pw.OBJ_X] = 3
             world.reset(x0)
             xt = world.state()
             
@@ -87,4 +98,37 @@ if __name__ == "__main__":
     #if not quit:
     #    plt.show(block=True)
     #embed()
+
+if __name__ == "__main__":
+    cost, states = pw.control_pusher()
+    states = np.asarray(states)
+    robot_poses = states[:, 0:2]
+    obj_poses = states[:, 4:6]
+
+    plt.figure(figsize=(10, 8))
+    ax = plt.gca()
+    world_dim = [-40, 40, -40, 40]
+    plt.axis('square')
+    plt.axis(world_dim)
+
+    pusher_color = (0.7,0.5,0.5, 0.5)
+    obj_color = (0,0,1, 0.5)
+    labels = []
+    l = draw_traj(ax, robot_poses, 4, pusher_color, "pusher", skip=1); 
+    labels.append(l)
+    l = draw_traj(ax, obj_poses, 3, obj_color, "obj", skip=1); 
+    labels.append(l)
+
+    l = vis.draw_circle(ax, obj_poses[1], 3, np.asarray(obj_color)[0:4])
+    l._edgecolor = (0,0,0,1);
+    l._linewidth = 3
+    l = vis.draw_circle(ax, obj_poses[-1], 3, np.asarray(obj_color)[0:4])
+    l._edgecolor = (0,0,0,1);
+    l._linewidth = 1
+    plt.text(obj_poses[-1][0], obj_poses[-1][1], "End", color=(0,1,0));
+    plt.text(obj_poses[1][0], obj_poses[1][1], "Start", color=(0,1,0));
+
+    ax.legend(handles=labels)
+    plt.show()
+
 

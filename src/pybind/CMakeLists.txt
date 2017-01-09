@@ -24,5 +24,5 @@ pybind11_add_module(sim_objects sim_objects.cc)
 target_link_libraries(sim_objects simulators)
 
 pybind11_add_module(pusher_world pusher_world.cc)
-target_link_libraries(pusher_world simulators)
+target_link_libraries(pusher_world circle_pusher simulators)
 

@@ -8,13 +8,12 @@ namespace pusher
     
 PusherWorld::PusherWorld(const Circle &pusher, const Circle &object, 
         const Eigen::Vector2d &pusher_vel, const double dt) 
-    : dt_(dt), pusher_(pusher), pusher_vel_(pusher_vel), object_(object), 
-    initial_object_(object) 
+    : dt_(dt), pusher_(pusher), pusher_vel_(pusher_vel), object_(object)
 {
-    reset(state());
+    reset(state_vector());
 };
 
-Vector<STATE_DIM> PusherWorld::state()
+Vector<STATE_DIM> PusherWorld::state_vector()
 {
     Vector<STATE_DIM> x; 
     x.setZero();
@@ -22,6 +21,9 @@ Vector<STATE_DIM> PusherWorld::state()
     x[POS_Y] = pusher_.y();
     x[V_X] = pusher_vel_[0];
     x[V_Y] = pusher_vel_[1];
+    x[OBJ_X] = object_.x();
+    x[OBJ_Y] = object_.y();
+    x[OBJ_STUCK] = object_stuck_;
 
     return x;
 }
@@ -36,7 +38,8 @@ void PusherWorld::reset(const Vector<STATE_DIM>& x)
     pusher_vel_[0] = x[V_X];
     pusher_vel_[1] = x[V_Y];
 
-    object_ = initial_object_; 
+    object_.x() = x[OBJ_X];
+    object_.y() = x[OBJ_Y];
 
     intersect_and_project_obj();
 }
@@ -48,11 +51,13 @@ Vector<STATE_DIM> PusherWorld::operator()(const Vector<STATE_DIM>& x, const Vect
 
 Vector<STATE_DIM> PusherWorld::step(const Vector<STATE_DIM>& xt, const Vector<CONTROL_DIM>& ut)
 {
-    // Make sure the pusher matchesthe incoming state.
-    IS_EQUAL(pusher_.x(), xt[POS_X]);
-    IS_EQUAL(pusher_.y(), xt[POS_Y]);
-    IS_EQUAL(pusher_vel_[0], xt[V_X]);
-    IS_EQUAL(pusher_vel_[1], xt[V_Y]);
+    // Set the pusher and object state to that passed in
+    pusher_.x() = xt[POS_X];
+    pusher_.y() = xt[POS_Y];
+    pusher_vel_[0] = xt[V_X];
+    pusher_vel_[1] = xt[V_Y];
+    object_.x() = xt[OBJ_X];
+    object_.y() = xt[OBJ_Y];
 
     const Vector<2> vt(xt[V_X]*dt_, xt[V_Y]*dt_); 
 
@@ -61,31 +66,42 @@ Vector<STATE_DIM> PusherWorld::step(const Vector<STATE_DIM>& xt, const Vector<CO
     xt1[POS_Y] = xt[POS_Y] + vt[1];
     xt1[V_X] = xt[V_X] + ut[dV_X]*dt_;
     xt1[V_Y] = xt[V_Y] + ut[dV_Y]*dt_;
+    xt1[OBJ_X] = xt[OBJ_X]; 
+    xt1[OBJ_Y] = xt[OBJ_Y]; 
 
-    // Update the pusher state
+    const bool xt_object_stuck = xt[OBJ_STUCK];
+    object_stuck_ = xt_object_stuck;
+    if (xt_object_stuck)
+    {
+        xt1[OBJ_X] += vt[0];
+        xt1[OBJ_Y] += vt[1];
+    }
+
+    // Update the pusher and object state
     pusher_.x() = xt1[POS_X];
     pusher_.y() = xt1[POS_Y];
     pusher_vel_[0] = xt1[V_X];
     pusher_vel_[1] = xt1[V_Y];
+    object_.x() = xt1[OBJ_X];
+    object_.y() = xt1[OBJ_Y];
 
     // If the object is stuck to the pusher, we need to push it along
     // with the pusher itself.
-    if (object_stuck_)
-    {
-        object_.x() += vt[0];
-        object_.y() += vt[1];
-    }
-
     intersect_and_project_obj();
+
+    // Store the object pose if it was projected out.
+    xt1[OBJ_X] = object_.x();
+    xt1[OBJ_Y] = object_.y();
+    xt1[OBJ_STUCK] = object_stuck_;
 
     return xt1;
 }
 
-void PusherWorld::intersect_and_project_obj() 
+bool PusherWorld::intersect_and_project_obj() 
 {
     // Update the object by first checking collision.
     double dist = 9999;
-    bool intersects = pusher_.distance(object_, dist);
+    const bool intersects = pusher_.distance(object_, dist);
 
     // Object is now 'stuck' to the pusher.
     if (intersects)
@@ -114,6 +130,8 @@ void PusherWorld::intersect_and_project_obj()
 
         object_.position() += std::abs(dist) * proj_vec / proj_vec.norm();
     }
+
+    return intersects;
 }
 
 

@@ -22,6 +22,9 @@ enum State
     POS_Y,
     V_X,
     V_Y,
+    OBJ_X,
+    OBJ_Y,
+    OBJ_STUCK,
     STATE_DIM
 };
 
@@ -38,7 +41,7 @@ public:
     PusherWorld(const Circle &pusher, const Circle &object, 
             const Eigen::Vector2d &pusher_vel, const double dt);
 
-    Vector<STATE_DIM> state();
+    Vector<STATE_DIM> state_vector();
 
     Vector<STATE_DIM> operator()(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u);
     Vector<STATE_DIM> step(const Vector<STATE_DIM>& xt, const Vector<CONTROL_DIM>& ut);
@@ -62,12 +65,12 @@ private:
     Eigen::Vector2d pusher_vel_;
 
     Circle object_;
-    Circle initial_object_;
 
     // Is the object in contact and stuck to the pusher.
     bool object_stuck_ = false;
 
-    void intersect_and_project_obj(); 
+    // Returns true if object is stuck to pusher.
+    bool intersect_and_project_obj(); 
 };
 
 }

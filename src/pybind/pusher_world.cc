@@ -10,6 +10,7 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 
+#include <experiments/circle_pusher.hh>
 #include <experiments/simulators/objects.hh>
 #include <experiments/simulators/pusher.hh>
 
@@ -29,6 +30,9 @@ PYBIND11_PLUGIN(pusher_world)
     .value("POS_Y", pusher::State::POS_Y)
     .value("V_X", pusher::State::V_X)
     .value("V_Y", pusher::State::V_Y)
+    .value("OBJ_X", pusher::State::OBJ_X)
+    .value("OBJ_Y", pusher::State::OBJ_Y)
+    .value("OBJ_STUCK", pusher::State::OBJ_STUCK)
     .export_values();
 
     py::enum_<pusher::Control>(m, "Control")
@@ -40,7 +44,7 @@ PYBIND11_PLUGIN(pusher_world)
         .def(py::init<const Circle &, const Circle &, const Eigen::Vector2d &, 
                 const double>())
         .def("step", &PusherWorld::step)
-        .def("state", &PusherWorld::state)
+        .def("state", &PusherWorld::state_vector)
         .def("reset", &PusherWorld::reset)
         .def("pusher", (const Circle& (PusherWorld::*)() const) &PusherWorld::pusher)
         .def("object", (const Circle& (PusherWorld::*)() const) &PusherWorld::object)
@@ -57,6 +61,13 @@ PYBIND11_PLUGIN(pusher_world)
                     return oss.str();
                 });
         ;
+
+    m.def("control_pusher", 
+            []() { 
+                std::vector<pusher::Vector<pusher::STATE_DIM>> states;
+                const double rollout_cost = control_pusher(PolicyTypes::TRUE_ILQR, states);
+                return std::make_tuple(rollout_cost, states);
+            });
 
     return m.ptr();
 }

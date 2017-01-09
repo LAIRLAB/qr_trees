@@ -13,10 +13,13 @@ endif (USE_PYTHON_HOMEBREW)
 include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories("${PROJECT_SOURCE_DIR}/pybind11/include")
 
+set(PYTHONLIBS_FOUND True)
+
 # We have to specifiy a binary directory since the 
 # subdirectory is higher level.
 add_subdirectory("../../pybind11" "../../pybind11/build")
 #pybind11_add_module(bind_test bind_test.cc)
 pybind11_add_module(ilqr_diffdrive ilqr_diffdrive.cc)
-target_link_libraries(ilqr_diffdrive single_obs_diffdrive)
+set_target_properties(ilqr_diffdrive PROPERTIES SUFFIX ".so")
+target_link_libraries(ilqr_diffdrive PRIVATE single_obs_diffdrive)
 

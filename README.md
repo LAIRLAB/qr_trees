@@ -1,11 +1,15 @@
 # qr_trees
-Extremely alpha code.
-
 An implementation of (templated) iLQR can be found in headers `src/templated/iLQR.hh` and `src/templated/iLQR_impl.hh`. 
 
 ## Requirements
 - Eigen3
 - Python (python-dev)
+
+If using `clang` compiler, libc++ is required (`sudo apt-get install libc++-dev`).
+
+You may need to get [Eigen 3.3](http://eigen.tuxfamily.org/index.php?title=Main_Page) or higher to
+get it working with C++11 standards.
+
 
 ## Quick Build Instructions:
 ```

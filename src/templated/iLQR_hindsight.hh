@@ -63,12 +63,7 @@ public:
     using Cost = std::function<double(const Vector<xdim> &x, const Vector<udim> &u, const int t)>;
     using FinalCost = std::function<double(const Vector<xdim> &x)>;
 
-    iLQRHindsightSolver(const std::vector<HindsightBranch<xdim,udim>> &branches)
-    {
-        IS_GREATER(branches.size(), 0);
-        branches_ = branches; 
-        IS_ALMOST_EQUAL(total_branch_probability(), 1.0, 1e-3);
-    }
+    iLQRHindsightSolver(const std::vector<HindsightBranch<xdim,udim>> &branches);
 
     // Computes the control at timestep 0 using K0_, k0_ that is
     // shared across all branches.
@@ -110,8 +105,8 @@ private:
     std::vector<HindsightBranch<xdim,udim>> branches_;
 
     // Feedback control gains.
-    Matrix<udim, xdim> K0_ = Matrix<udim, xdim>::Zero();
-    Vector<udim> k0_ = Vector<udim>::Zero();
+    Matrix<udim, xdim> K0_; 
+    Vector<udim> k0_; 
 
     // Linearization points for the first timestep.
     Vector<xdim> xhat0_ = Vector<xdim>::Zero();

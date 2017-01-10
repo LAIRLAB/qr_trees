@@ -17,6 +17,9 @@ int main()
     cost_to_go = single_obs_control_diffdrive(PolicyTypes::TRUE_ILQR, false, probs, state_output_fname, obstacle_output_fname);
     PRINT("\n");
 
+    // So that we can compile without complaining about unused variable...
+    if (cost_to_go) {}
+
     //cost_to_go = control_diffdrive(PolicyTypes::PROB_WEIGHTED_CONTROL, true, probs);
     //PRINT("\n");
     //cost_to_go = control_diffdrive(PolicyTypes::PROB_WEIGHTED_CONTROL, false, probs);

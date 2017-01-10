@@ -258,7 +258,7 @@ double control_diffdrive(const PolicyTypes policy,
 
     std::vector<Vector<STATE_DIM>> states;
 
-    clock_t ilqr_begin_time = clock();
+    //clock_t ilqr_begin_time = clock();
     if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
     {
         weighted_cntrl_world_1.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
@@ -282,7 +282,7 @@ double control_diffdrive(const PolicyTypes policy,
         //const int plan_horizon = std::min(T-t, MPC_HORIZON);
         
         Vector<CONTROL_DIM> ut;
-        ilqr_begin_time = clock();
+        //ilqr_begin_time = clock();
         if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
         {
             weighted_cntrl_world_1.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);

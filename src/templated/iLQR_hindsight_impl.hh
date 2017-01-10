@@ -15,6 +15,16 @@ namespace ilqr
 {
 
 template<int xdim, int udim>
+inline iLQRHindsightSolver<xdim,udim>::iLQRHindsightSolver(const std::vector<HindsightBranch<xdim,udim>> &branches) :
+    K0_(Matrix<udim, xdim>::Zero()),
+    k0_(Vector<udim>::Zero())
+{
+    IS_GREATER(branches.size(), 0);
+    branches_ = branches; 
+    IS_ALMOST_EQUAL(total_branch_probability(), 1.0, 1e-3);
+}
+
+template<int xdim, int udim>
 inline Vector<udim> iLQRHindsightSolver<xdim,udim>::compute_first_control(const Vector<xdim> &x0) const
 {    
     const Vector<xdim> zt = (x0 - xhat0_);
@@ -29,7 +39,7 @@ template<int xdim, int udim>
 inline Vector<udim> iLQRHindsightSolver<xdim,udim>::compute_control_stepsize(
         const int branch_num, const Vector<xdim> &xt, const int t, const double alpha) const
 {
-    IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
+    IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, static_cast<int>(branches_.size()));
     const HindsightBranch<xdim,udim> &branch = branches_[branch_num];
 
     const Matrix<udim, xdim> &Kt = branch.Ks[t];
@@ -49,7 +59,7 @@ inline double iLQRHindsightSolver<xdim,udim>::forward_pass(const int branch_num,
             const double alpha
         ) const
 {
-    IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
+    IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, static_cast<int>(branches_.size()));
 
     const int T = timesteps();
 
@@ -139,10 +149,10 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
 
             // Confirm that the time horizon matches the size of requried
             // variables. 
-            IS_EQUAL(branch.Ks.size(), T);
-            IS_EQUAL(branch.ks.size(), T);
-            IS_EQUAL(branch.uhat.size(), T);
-            IS_EQUAL(branch.xhat.size(), T+1);
+            IS_EQUAL(static_cast<int>(branch.Ks.size()), T);
+            IS_EQUAL(static_cast<int>(branch.ks.size()), T);
+            IS_EQUAL(static_cast<int>(branch.uhat.size()), T);
+            IS_EQUAL(static_cast<int>(branch.xhat.size()), T+1);
 
             K0_ += branch.probability * branch.Ks.at(0);
             k0_ += branch.probability * branch.ks.at(0);
@@ -391,7 +401,7 @@ inline int iLQRHindsightSolver<xdim,udim>::timesteps() const
 template<int xdim, int udim>
 inline void iLQRHindsightSolver<xdim,udim>::set_branch_probability(const int branch_num, const double probability)
 {
-    IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
+    IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, static_cast<int>(branches_.size()));
     IS_BETWEEN_INCLUSIVE(probability, 0, 1.0);
     branches_[branch_num].probability = probability;
 }

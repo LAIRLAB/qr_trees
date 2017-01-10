@@ -46,10 +46,10 @@ void PusherWorld::reset(const Vector<STATE_DIM>& x)
 
 Vector<STATE_DIM> PusherWorld::operator()(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u)
 {
-    return step(x, u);
+    return step(x, u, dt_);
 }
 
-Vector<STATE_DIM> PusherWorld::step(const Vector<STATE_DIM>& xt, const Vector<CONTROL_DIM>& ut)
+Vector<STATE_DIM> PusherWorld::step(const Vector<STATE_DIM>& xt, const Vector<CONTROL_DIM>& ut, double dt)
 {
     // Set the pusher and object state to that passed in
     pusher_.x() = xt[POS_X];
@@ -64,8 +64,8 @@ Vector<STATE_DIM> PusherWorld::step(const Vector<STATE_DIM>& xt, const Vector<CO
     Vector<STATE_DIM> xt1;
     xt1[POS_X] = xt[POS_X] + vt[0];
     xt1[POS_Y] = xt[POS_Y] + vt[1];
-    xt1[V_X] = xt[V_X] + ut[dV_X]*dt_;
-    xt1[V_Y] = xt[V_Y] + ut[dV_Y]*dt_;
+    xt1[V_X] = xt[V_X] + ut[dV_X]*dt;
+    xt1[V_Y] = xt[V_Y] + ut[dV_Y]*dt;
     xt1[OBJ_X] = xt[OBJ_X]; 
     xt1[OBJ_Y] = xt[OBJ_Y]; 
 

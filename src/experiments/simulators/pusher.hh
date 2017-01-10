@@ -44,7 +44,7 @@ public:
     Vector<STATE_DIM> state_vector();
 
     Vector<STATE_DIM> operator()(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u);
-    Vector<STATE_DIM> step(const Vector<STATE_DIM>& xt, const Vector<CONTROL_DIM>& ut);
+    Vector<STATE_DIM> step(const Vector<STATE_DIM>& xt, const Vector<CONTROL_DIM>& ut, const double dt);
 
     void reset(const Vector<STATE_DIM>& x);
 

@@ -31,6 +31,9 @@ using Vector = Eigen::Matrix<double, rows, 1>;
 template <int rows, int cols>
 using Matrix = Eigen::Matrix<double, rows, cols>;
 
+// Used for the first time step when the object pose is uknown 
+constexpr double UNKOWN_OBJ_POS = -9999; 
+
 double robot_radius = 4;
 double object_radius = 3;
 Matrix<STATE_DIM, STATE_DIM> Q;
@@ -59,13 +62,17 @@ double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t)
     const Vector<CONTROL_DIM> du = u;
     cost += 0.5*(du.transpose()*R*du)[0];
 
+    // If the object X or object Y is nan, then the object state is 
+    // unknown in this timestep. 
+    if (x[State::OBJ_X] != UNKOWN_OBJ_POS)
+    {
+        const Eigen::Vector2d robot_pos(x[State::POS_X], x[State::POS_Y]);
+        const Eigen::Vector2d obj_pos(x[State::OBJ_X], x[State::OBJ_Y]);
+        const double diff = (robot_pos - obj_pos).norm();
 
-    const Eigen::Vector2d robot_pos(x[State::POS_X], x[State::POS_Y]);
-    const Eigen::Vector2d obj_pos(x[State::OBJ_X], x[State::OBJ_Y]);
-    const double diff = (robot_pos - obj_pos).norm();
-
-    // This moves the robot towards the object until it touches.
-    cost += 5.0*std::max(0.0, diff - robot_radius - object_radius);
+        // This moves the robot towards the object until it touches.
+        cost += 5.0*std::max(0.0, diff - robot_radius - object_radius);
+    }
 
     return cost;
 }
@@ -75,6 +82,20 @@ double cT(const Vector<STATE_DIM> &x)
 {
     const Vector<STATE_DIM> dx = x - xT;
     return 0.5*(dx.transpose()*QT*dx)[0];
+}
+
+Vector<STATE_DIM> pusher_dynamics(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, 
+        const Eigen::Vector2d &obj_start_pos, pusher::PusherWorld &world)
+{
+    Vector<STATE_DIM> x_fixed = x;
+    // If the object X or object Y is nan, then the object state is unknown in
+    // the previous timestep. We set it in the dynamics to move forward.
+    if (x[State::OBJ_X] == UNKOWN_OBJ_POS || x[State::OBJ_Y] == UNKOWN_OBJ_POS)
+    {
+        x_fixed[State::OBJ_X] = obj_start_pos[0];
+        x_fixed[State::OBJ_Y] = obj_start_pos[1];
+    }
+    return world(x_fixed, u);
 }
 
 int get_argmax(const std::array<double, 2> &prob)
@@ -95,10 +116,12 @@ double control_pusher(const PolicyTypes policy,
 {
     using namespace std::placeholders;
 
-    T = 50;
-	const double dt = 1.0/6.0;
+    T = 25;
+	const double dt = 0.5;
     IS_GREATER(T, 1);
     IS_GREATER(dt, 0);
+
+    const Eigen::Vector2d true_obj_start_pos(-5, 10);
 
     DEBUG("Running with policy \"" << to_string(policy))
 
@@ -107,8 +130,8 @@ double control_pusher(const PolicyTypes policy,
 	xT[State::POS_Y] = 25;
 	xT[State::V_X] = 0; 
 	xT[State::V_Y] = 0;
-	xT[State::OBJ_X] = 10;//xT[State::POS_X]+robot_radius+object_radius; 
-	xT[State::OBJ_Y] = 15;//xT[State::POS_Y]+robot_radius+object_radius; 
+	xT[State::OBJ_X] = 0;//xT[State::POS_X]+robot_radius+object_radius; 
+	xT[State::OBJ_Y] = 25;//xT[State::POS_Y]+robot_radius+object_radius; 
 	xT[State::OBJ_STUCK] = 1; 
 
     PRINT("Target: " << xT.transpose());
@@ -118,20 +141,22 @@ double control_pusher(const PolicyTypes policy,
 	x0[State::POS_Y] = 0;
 	x0[State::V_X] = 0;
 	x0[State::V_Y] = 0;
-	x0[State::OBJ_X] = 0; 
-	x0[State::OBJ_Y] = 10; 
+	x0[State::OBJ_X] = UNKOWN_OBJ_POS; 
+	x0[State::OBJ_Y] = UNKOWN_OBJ_POS; 
 	x0[State::OBJ_STUCK] = 0; 
 
 	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
+    Q(State::OBJ_X, State::OBJ_X) = 0.0;
+    Q(State::OBJ_Y, State::OBJ_Y) = 0.0;
 
     QT = 1e-3*Matrix<STATE_DIM,STATE_DIM>::Identity();
     QT(State::V_X, State::V_X) = 5.0;
     QT(State::V_Y, State::V_Y) = 5.0;
-    QT(State::OBJ_X, State::OBJ_X) = 50.0;
-    QT(State::OBJ_Y, State::OBJ_Y) = 50.0;
+    QT(State::OBJ_X, State::OBJ_X) = 80.0;
+    QT(State::OBJ_Y, State::OBJ_Y) = 80.0;
     //QT(State::OBJ_STUCK, State::OBJ_STUCK) = 1.0;
 
-	R = 5*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
+	R = 10*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
     // Initial linearization points are linearly interpolated states and zero
     // control.
@@ -147,8 +172,8 @@ double control_pusher(const PolicyTypes policy,
             dt);
 
     constexpr bool verbose = false;
-    constexpr int max_iters_begin = 300;
-    constexpr int max_iters = 100;
+    constexpr int max_iters_begin = 500;
+    constexpr int max_iters = 300;
     constexpr double mu = 0.05;
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 10;
@@ -161,8 +186,9 @@ double control_pusher(const PolicyTypes policy,
     
     //std::array<double, 2> obs_probability = OBS_PRIOR;
     
-    // Make a copy
-    pusher::PusherWorld true_dynamics = true_world;
+    // We use a version that can take UNKOWN_OBJ_POS and convert it on the next
+    // time step to resolve the ambiguity.
+    auto true_dynamics = std::bind(pusher_dynamics, _1, _2, std::cref(true_obj_start_pos), std::ref(true_world));
 
     // Setup the true system solver.
     ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(true_dynamics, cT_true_world, ct_true_world, 1.0);
@@ -201,7 +227,7 @@ double control_pusher(const PolicyTypes policy,
         PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
         rollout_cost += ct_true_world(xt, ut, t);
-        const Vector<STATE_DIM> xt1 = true_world(xt, ut);
+        const Vector<STATE_DIM> xt1 = true_dynamics(xt, ut);
 
         xt = xt1;
         states.push_back(xt);

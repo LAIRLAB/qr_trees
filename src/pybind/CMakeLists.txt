@@ -24,8 +24,10 @@ set_target_properties(ilqr_diffdrive PROPERTIES SUFFIX ".so")
 target_link_libraries(ilqr_diffdrive PRIVATE single_obs_diffdrive)
 
 pybind11_add_module(sim_objects sim_objects.cc)
+set_target_properties(sim_objects PROPERTIES SUFFIX ".so")
 target_link_libraries(sim_objects simulators)
 
 pybind11_add_module(pusher_world pusher_world.cc)
+set_target_properties(pusher_world PROPERTIES SUFFIX ".so")
 target_link_libraries(pusher_world circle_pusher simulators)
 

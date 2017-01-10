@@ -3,10 +3,11 @@
 # If we are not running from the build directory, then add lib to path from
 # build assuming we are running from the python folder
 import os
-full_path = os.path.abspath(__file__)
-if full_path.count("build") == 0 and full_path.count("src/python") > 0:
+full_path = os.path.realpath(__file__)
+if full_path.count("src/python") > 0:
     import sys
-    sys.path.append(os.path.abspath("../../build/"))
+    to_add = os.path.abspath(os.path.join(os.path.split(full_path)[0], "../../build/"))
+    sys.path.append(to_add)
 
 
 import lib.pusher_world as pw

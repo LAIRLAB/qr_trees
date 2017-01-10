@@ -15,6 +15,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <numeric>
 
 namespace 
 {
@@ -98,13 +99,11 @@ Vector<STATE_DIM> pusher_dynamics(const Vector<STATE_DIM> &x, const Vector<CONTR
     return world(x_fixed, u);
 }
 
-int get_argmax(const std::array<double, 2> &prob)
+int get_argmax(const std::vector<double> &probs)
 {
-    if (prob[0] > prob[1])
-    {
-        return 0;
-    }
-    return 1;
+    const int arg_max_prob = std::distance(probs.begin(),
+                std::max_element(probs.begin(), probs.end()));
+    return arg_max_prob;
 }
 
 
@@ -122,6 +121,7 @@ double control_pusher(const PolicyTypes policy,
     IS_GREATER(dt, 0);
 
     const Eigen::Vector2d true_obj_start_pos(-5, 10);
+    const Eigen::Vector2d other_obj_start_pos(5, 10);
 
     DEBUG("Running with policy \"" << to_string(policy))
 
@@ -165,9 +165,14 @@ double control_pusher(const PolicyTypes policy,
 
     //const std::array<double, 2> CONTROL_LIMS = {{-5, 5}};
     
-    Circle pusher(robot_radius, x0[State::POS_X], x0[State::POS_Y]);
-    Circle object(object_radius, x0[State::OBJ_X], x0[State::OBJ_Y]);
-    pusher::PusherWorld true_world(pusher, object, 
+    const Circle pusher(robot_radius, x0[State::POS_X], x0[State::POS_Y]);
+    const Circle true_object(object_radius, true_obj_start_pos);
+    pusher::PusherWorld true_world(pusher, true_object, 
+            Eigen::Vector2d(x0[State::V_X], x0[State::V_Y]), 
+            dt);
+
+    const Circle other_object(object_radius, other_obj_start_pos);
+    pusher::PusherWorld other_world(pusher, true_object, 
             Eigen::Vector2d(x0[State::V_X], x0[State::V_Y]), 
             dt);
 
@@ -178,32 +183,51 @@ double control_pusher(const PolicyTypes policy,
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 10;
 
-    // Setup the cost function with environments that have the obstacle and one
-    // that does not.
-    auto ct_true_world = ct; 
-    auto cT_true_world = cT; 
-    //auto ct_other_world = std::bind(ct, _1, _2, _3, other_world);
-    
-    //std::array<double, 2> obs_probability = OBS_PRIOR;
+    const int true_obj_index = 0;
+    std::vector<double> obs_probability = {0.5, 0.5};
+    const std::vector<Eigen::Vector2d> object_poses = {true_obj_start_pos, other_obj_start_pos};
     
     // We use a version that can take UNKOWN_OBJ_POS and convert it on the next
     // time step to resolve the ambiguity.
     auto true_dynamics = std::bind(pusher_dynamics, _1, _2, std::cref(true_obj_start_pos), std::ref(true_world));
+    auto other_dynamics = std::bind(pusher_dynamics, _1, _2, std::cref(other_obj_start_pos), std::ref(true_world));
 
     // Setup the true system solver.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(true_dynamics, cT_true_world, ct_true_world, 1.0);
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(true_dynamics, cT, ct, 1.0);
     ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> true_chain_solver({true_branch});
 
-    clock_t ilqr_begin_time = clock();
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> *solver 
-        = &true_chain_solver; 
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_true_branch(true_dynamics, cT, ct, 0.5);
+    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_other_branch(other_dynamics, cT, ct, 0.5);
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_true_branch, hindsight_other_branch});
 
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> *solver = nullptr; 
+    switch(policy)
+    {
+    case PolicyTypes::TRUE_ILQR:
+        solver = &true_chain_solver;
+        break;
+    case PolicyTypes::HINDSIGHT:
+        solver = &hindsight_solver;
+        break;
+    case PolicyTypes::ARGMAX_ILQR:
+        //solver = &argmax_solver;
+        break;
+    case PolicyTypes::PROB_WEIGHTED_CONTROL:
+        // do nothing as this requires two separate solvers
+        break;
+    };
+
+    clock_t ilqr_begin_time = clock();
     solver->solve(T, x0, u_nominal, mu, max_iters_begin, 
             verbose, convg_thresh, start_alpha);
     PRINT("start: Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
     std::vector<Vector<pusher::Control::CONTROL_DIM>> controls;
     //return solver->forward_pass(0, x0, states, controls, 1.0); 
+
+
+    pusher::PusherWorld test_world = true_world;
+    bool uncertainty_resolved = false;
 
     double rollout_cost = 0;
     Vector<STATE_DIM> xt = x0;
@@ -226,15 +250,80 @@ double control_pusher(const PolicyTypes policy,
 
         PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
-        rollout_cost += ct_true_world(xt, ut, t);
+        rollout_cost += ct(xt, ut, t);
         const Vector<STATE_DIM> xt1 = true_dynamics(xt, ut);
+
+        // We found the true object!
+        if (xt1[State::OBJ_STUCK])
+        {
+            std::for_each(obs_probability.begin(), obs_probability.end(), [](double &v) { v = 0; } );
+            obs_probability[true_obj_index] = 1;
+            uncertainty_resolved = true;
+        }
+        if (!uncertainty_resolved)
+        {
+            // If we would have touched any of the obstacles, then we would observe
+            // them.
+            for (size_t i = 0; i < object_poses.size(); ++i)
+            {
+                // If we have already elimated this option, then continue.
+                if (obs_probability[i] == 0)
+                {
+                    continue;
+                }
+
+                const Eigen::Vector2d &obj_pos = object_poses[i];
+                auto test_dynamics = std::bind(pusher_dynamics, _1, _2, std::cref(obj_pos), std::ref(test_world));
+
+                Vector<STATE_DIM> xt_test = xt;
+                xt_test[State::OBJ_X] = obj_pos[0];
+                xt_test[State::OBJ_Y] = obj_pos[1];
+                Vector<STATE_DIM> xt1_test = test_dynamics(xt_test, ut);
+                obs_probability[i] = 1;
+                if (xt1_test[State::OBJ_STUCK] != xt1[State::OBJ_STUCK])
+                {
+                    obs_probability[i] = 0;
+                }
+            }
+            // normalize the probabilities.
+            const double Z = std::accumulate(obs_probability.begin(), obs_probability.end(), 0.0);
+            std::for_each(obs_probability.begin(), obs_probability.end(), [Z](double &v) { v /= Z; } );
+            const double Z_after = std::accumulate(obs_probability.begin(), obs_probability.end(), 0.0);
+            IS_ALMOST_EQUAL(Z_after, 1.0, 1e-3);
+        }
+        IS_GREATER(obs_probability[true_obj_index], 0.0);
+        
 
         xt = xt1;
         states.push_back(xt);
+        
+        switch(policy)
+        {
+        case PolicyTypes::TRUE_ILQR:
+            break;
+        case PolicyTypes::HINDSIGHT:
+            for (size_t i = 0; i < object_poses.size(); ++i)
+            {
+                solver->set_branch_probability(i, obs_probability[i]);
+            }
+            break;
+        case PolicyTypes::ARGMAX_ILQR:
+        {
+            const int argmax_branch = get_argmax(obs_probability);
+            const int other_branch = (argmax_branch == 0) ? 1 : 0;
+            solver->set_branch_probability(argmax_branch, 1.0);
+            solver->set_branch_probability(other_branch, 0.0);
+            break;
+        }
+        case PolicyTypes::PROB_WEIGHTED_CONTROL:
+            // do nothing as this requires two separate solvers
+            break;
+        };
+
 
         //const Eigen::Vector2d robot_position(xt[State::POS_X], xt[State::POS_Y]);
     }
-    rollout_cost += cT_true_world(xt);
+    rollout_cost += cT(xt);
     DEBUG(" x_rollout(" << T-1 << ")= " << xt.transpose());
     DEBUG(" Total cost rollout: " << rollout_cost);
 

@@ -65,7 +65,7 @@ PYBIND11_PLUGIN(pusher_world)
     m.def("control_pusher", 
             []() { 
                 std::vector<pusher::Vector<pusher::STATE_DIM>> states;
-                const double rollout_cost = control_pusher(PolicyTypes::TRUE_ILQR, states);
+                const double rollout_cost = control_pusher(PolicyTypes::HINDSIGHT, states);
                 return std::make_tuple(rollout_cost, states);
             });
 

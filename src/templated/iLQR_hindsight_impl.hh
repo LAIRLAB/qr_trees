@@ -197,6 +197,8 @@ inline void iLQRHindsightSolver<xdim,udim>::solve(const int T,
 
             // Try decreasing the step-size by beta-times. 
             alpha *= beta;
+
+            IS_FALSE(std::isnan(cost_diff_ratio));
         } 
 
         // Since we always beta-it at the end of the iteration, invert it to get 

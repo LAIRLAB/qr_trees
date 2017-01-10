@@ -65,7 +65,9 @@ template<int xdim, int udim>
 inline void iLQRSolver<xdim,udim>::solve(const int T, 
         const Vector<xdim> &x_init, const Vector<udim> u_nominal, 
         const double mu, const int max_iters, bool verbose, 
-        const double cost_convg_ratio, const double start_alpha)
+        const double cost_convg_ratio, const double start_alpha,
+        const bool warm_start, const int t_offset
+        )
 {
     IS_GREATER(T, 0);
     IS_GREATER_EQUAL(mu, 0);
@@ -73,11 +75,30 @@ inline void iLQRSolver<xdim,udim>::solve(const int T,
     IS_GREATER(cost_convg_ratio, 0);
     IS_GREATER(start_alpha, 0);
 
-    Ks_ = std::vector<Matrix<udim, xdim>>(T, Matrix<udim, xdim>::Zero());
-    ks_ = std::vector<Vector<udim>>(T, Vector<udim>::Zero());
+    if (!warm_start)
+    {
+        Ks_ = std::vector<Matrix<udim, xdim>>(T, Matrix<udim, xdim>::Zero());
+        ks_ = std::vector<Vector<udim>>(T, Vector<udim>::Zero());
 
-    uhat_ = std::vector<Vector<udim>>(T, u_nominal);
-    xhat_ = std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero());
+        uhat_ = std::vector<Vector<udim>>(T, u_nominal);
+        xhat_ = std::vector<Vector<xdim>>(T+1, Vector<xdim>::Zero());
+    }
+    else // if we warm start
+    {
+        IS_GREATER(static_cast<int>(Ks_.size()), t_offset);
+
+        Ks_.erase(Ks_.begin(), Ks_.begin()+t_offset);
+        ks_.erase(ks_.begin(), ks_.begin()+t_offset);
+        uhat_.erase(uhat_.begin(), uhat_.begin()+t_offset);
+        xhat_.erase(xhat_.begin(), xhat_.begin()+t_offset);
+
+        // Confirm that the time horizon matches the size of requried
+        // variables. 
+        IS_EQUAL(static_cast<int>(Ks_.size()), T);
+        IS_EQUAL(static_cast<int>(ks_.size()), T);
+        IS_EQUAL(static_cast<int>(uhat_.size()), T);
+        IS_EQUAL(static_cast<int>(xhat_.size()), T+1);
+    }
 
     std::vector<Vector<udim>> uhat_new (T, Vector<udim>::Zero());
     std::vector<Vector<xdim>> xhat_new(T+1, Vector<xdim>::Zero());

@@ -52,16 +52,28 @@ public:
     inline Vector<udim> compute_control_stepsize(const Vector<xdim> &xt, 
             const int t, const double alpha) const;
 
+    // Computes the locally-optimal iLQR solution.
     // :param x_init - Initial state from which to start the system from.
     // :param u_nominal - Initial control used for the whole sequence during 
     //      the first forward pass.
     // :param mu - Levenberg-Marquardt parameter for damping the least-squares. 
     //      Setting it to 0 gets the default behavior. The damping makes the 
     //      state-space steps smaller over iterations. 
+    // :param start_alpha - The initial step size to use when solving.
+    // :param cost_conv_ratio - When the cost over iterations changes by less than 
+    //      this ratio, then the optimization is stopped.
+    // :param warm_start - Warm start the solver using the previous solution stored
+    //      in the object from the last call to solve. 
+    // :param t_offset - The warm start time offset. The input argument T to this call
+    //      of solve should be T_{last_call} - t_offset. 
+    //      For example, if 1, then the first timestep of the previous solution 
+    //      is removed. 
     inline void solve(const int T, const Vector<xdim> &x_init, 
             const Vector<udim> u_nominal, const double mu, 
             const int max_iters = 1000, bool verbose = false, 
-            const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0);
+            const double cost_convg_ratio = 1e-4, const double start_alpha = 1.0,
+            const bool warm_start = false, const int t_offset = 0
+            );
 
     // :param alpha - Backtracking line search parameter. Setting to 1 gives regular forward pass.
     inline double forward_pass(const Vector<xdim> x_init, 

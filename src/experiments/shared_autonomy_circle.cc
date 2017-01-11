@@ -53,12 +53,12 @@ double obstacle_cost(const CircleWorld &world, const double robot_radius, const 
     double cost = 0;
 
     auto obstacles = world.obstacles();
-	for (size_t i = 0; i < obstacles.size(); ++i) {
-		Vector<2> d = robot_pos - obstacles[i].position();
-		double distr = d.norm(); 
-		double dist = distr - robot_radius - obstacles[i].radius();
-		cost += obstacle_factor * exp(-scale_factor*dist);
-	}
+    for (size_t i = 0; i < obstacles.size(); ++i) {
+        Eigen::Vector2d d = robot_pos - obstacles[i].position();
+        double distr = d.norm(); 
+        double dist = distr - robot_radius - obstacles[i].radius();
+        cost += obstacle_factor * exp(-scale_factor*dist);
+    }
     return cost;
 }
 
@@ -67,15 +67,16 @@ double ct(const StateVector &x, const ControlVector &u, const int t, const Circl
     double cost = 0;
 
     // position
-    if (t == 0)
-    {
-        StateVector dx = x - x0;
-        cost += 0.5*(dx.transpose()*Q*dx)[0];
-    }
+//    if (t == 0)
+//    {
+//        StateVector dx = x - x0;
+//        cost += 0.5*(dx.transpose()*Q*dx)[0];
+//    }
 
     // Control cost
-    const ControlVector du = u - u_nominal;
-    cost += 0.5*(du.transpose()*R*du)[0];
+    //const ControlVector du = u - u_nominal;
+    //cost += 0.5*(du.transpose()*R*du)[0];
+    cost += 0.5*(u.transpose()*R*u)[0];
 
     cost += obstacle_cost(world, robot_radius, x);
 
@@ -201,8 +202,7 @@ double control_shared_autonomy(const PolicyTypes policy,
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 1;
 
-    // Setup the cost function with environments that have the obstacle and one
-    // that does not.
+    // Setup the cost function with different environments
     auto ct_true_world = std::bind(ct, _1, _2, _3, true_world);
     auto ct_other_world = std::bind(ct, _1, _2, _3, other_world);
     

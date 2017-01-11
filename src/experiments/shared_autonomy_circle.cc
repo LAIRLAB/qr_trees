@@ -1,6 +1,6 @@
 #include <experiments/shared_autonomy_circle.hh>
 
-#include <experiments/simulators/diffdrive.hh>
+#include <experiments/simulators/directdrive.hh>
 #include <experiments/simulators/circle_world.hh>
 #include <templated/iLQR_hindsight_value.hh>
 #include <utils/math_utils_temp.hh>
@@ -17,9 +17,9 @@ namespace
 using CircleWorld = circle_world::CircleWorld;
 using Circle = circle_world::Circle;
 
-using State = simulators::diffdrive::State;
-constexpr int STATE_DIM = simulators::diffdrive::STATE_DIM;
-constexpr int CONTROL_DIM = simulators::diffdrive::CONTROL_DIM;
+using State = simulators::directdrive::State;
+constexpr int STATE_DIM = simulators::directdrive::STATE_DIM;
+constexpr int CONTROL_DIM = simulators::directdrive::CONTROL_DIM;
 //constexpr int OBS_DIM = circle_world::OBSTACLE_DIM;
 
 template <int rows>
@@ -28,6 +28,9 @@ using Vector = Eigen::Matrix<double, rows, 1>;
 template <int rows, int cols>
 using Matrix = Eigen::Matrix<double, rows, cols>;
 
+using StateVector = simulators::directdrive::StateVector;
+using ControlVector = simulators::directdrive::ControlVector;
+
 double robot_radius = 3.35/2.0; // iRobot create;
 double obstacle_factor = 300.0;
 double scale_factor = 1.0e0;
@@ -35,13 +38,13 @@ double scale_factor = 1.0e0;
 Matrix<STATE_DIM, STATE_DIM> Q;
 Matrix<STATE_DIM, STATE_DIM> QT; // Quadratic state cost for final timestep.
 Matrix<CONTROL_DIM, CONTROL_DIM> R;
-Vector<STATE_DIM> xT; // Goal state for final timestep.
-Vector<STATE_DIM> x0; // Start state for 0th timestep.
-Vector<CONTROL_DIM> u_nominal; 
+StateVector xT; // Goal state for final timestep.
+StateVector x0; // Start state for 0th timestep.
+ControlVector u_nominal; 
 
 int T;
 
-double obstacle_cost(const CircleWorld &world, const double robot_radius, const Vector<STATE_DIM> &xt)
+double obstacle_cost(const CircleWorld &world, const double robot_radius, const StateVector &xt)
 {
     Eigen::Vector2d robot_pos;
     robot_pos << xt[State::POS_X], xt[State::POS_Y];
@@ -59,24 +62,20 @@ double obstacle_cost(const CircleWorld &world, const double robot_radius, const 
     return cost;
 }
 
-double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t, const CircleWorld &world)
+double ct(const StateVector &x, const ControlVector &u, const int t, const CircleWorld &world)
 {
     double cost = 0;
 
     // position
     if (t == 0)
     {
-        Vector<STATE_DIM> dx = x - x0;
+        StateVector dx = x - x0;
         cost += 0.5*(dx.transpose()*Q*dx)[0];
     }
 
     // Control cost
-    const Vector<CONTROL_DIM> du = u - u_nominal;
+    const ControlVector du = u - u_nominal;
     cost += 0.5*(du.transpose()*R*du)[0];
-
-    cost += 10*x[State::dTHETA]*x[State::dTHETA];
-    cost += 0.05*x[State::dV_LEFT]*x[State::dV_LEFT];
-    cost += 0.05*x[State::dV_RIGHT]*x[State::dV_RIGHT];
 
     cost += obstacle_cost(world, robot_radius, x);
 
@@ -84,18 +83,18 @@ double ct(const Vector<STATE_DIM> &x, const Vector<CONTROL_DIM> &u, const int t,
 }
 
 // Final timestep cost function
-double cT(const Vector<STATE_DIM> &x)
+double cT(const StateVector &x)
 {
-    const Vector<STATE_DIM> dx = x - xT;
+    const StateVector dx = x - xT;
     return 0.5*(dx.transpose()*QT*dx)[0];
 }
 
-void states_to_file(const Vector<STATE_DIM>& x0, const Vector<STATE_DIM>& xT, 
-        const std::vector<Vector<STATE_DIM>> &states, 
+void states_to_file(const StateVector& x0, const StateVector& xT, 
+        const std::vector<StateVector> &states, 
         const std::string &fname)
 {
     std::ofstream file(fname, std::ofstream::trunc | std::ofstream::out);
-    auto print_vector = [&file](const Vector<STATE_DIM> &x)
+    auto print_vector = [&file](const StateVector &x)
     {
         constexpr int PRINT_WIDTH = 13;
         constexpr char DELIMITER[] = " ";
@@ -165,38 +164,34 @@ double control_shared_autonomy(const PolicyTypes policy,
             << "\" with num obs in true= \"" 
             << true_world.obstacles().size() << "\"");
 
-	xT = Vector<STATE_DIM>::Zero();
+	xT = StateVector::Zero();
 	xT[State::POS_X] = 0;
 	xT[State::POS_Y] = 25;
-	xT[State::THETA] = M_PI/2; 
-	xT[State::dTHETA] = 0;
 
-	x0 = Vector<STATE_DIM>::Zero();
+	x0 = StateVector::Zero();
 	x0[State::POS_X] = 0;
 	x0[State::POS_Y] = -25;
-	x0[State::THETA] = M_PI/2;
-	x0[State::dTHETA] = 0;
 
 	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
-	const double rot_cost = 0.5;
-    Q(State::THETA, State::THETA) = rot_cost;
-    Q(State::dV_LEFT, State::dV_LEFT) = 0.1;
-
-    QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity();
-    QT(State::THETA, State::THETA) = 50.0;
-    QT(State::dTHETA, State::dTHETA) = 5.0;
-    QT(State::dV_LEFT, State::dV_LEFT) = 5.0;
-    QT(State::dV_RIGHT, State::dV_RIGHT) = 5.0;
+//	const double rot_cost = 0.5;
+//    Q(State::THETA, State::THETA) = rot_cost;
+//    Q(State::dV_LEFT, State::dV_LEFT) = 0.1;
+//
+  QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity();
+//    QT(State::THETA, State::THETA) = 50.0;
+//    QT(State::dTHETA, State::dTHETA) = 5.0;
+//    QT(State::dV_LEFT, State::dV_LEFT) = 5.0;
+//    QT(State::dV_RIGHT, State::dV_RIGHT) = 5.0;
 
 	R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
     // Initial linearization points are linearly interpolated states and zero
     // control.
-    u_nominal[0] = 2.5;
-    u_nominal[1] = 2.5;
+    u_nominal[0] = 0.0;
+    u_nominal[1] = 0.0;
 
     const std::array<double, 2> CONTROL_LIMS = {{-5, 5}};
-    simulators::diffdrive::DiffDrive system(dt, CONTROL_LIMS, world_dims);
+    simulators::directdrive::DirectDrive system(dt, CONTROL_LIMS, world_dims);
 
     auto dynamics = system;
 
@@ -256,7 +251,7 @@ double control_shared_autonomy(const PolicyTypes policy,
     };
 
 
-    std::vector<Vector<STATE_DIM>> states;
+    std::vector<StateVector> states;
 
     clock_t ilqr_begin_time = clock();
     if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
@@ -271,7 +266,7 @@ double control_shared_autonomy(const PolicyTypes policy,
     //PRINT("Pre-solve" << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
     double rollout_cost = 0;
-    Vector<STATE_DIM> xt = x0;
+    StateVector xt = x0;
     // store initial state
     states.push_back(xt);
     //TODO: How to run this for full T?
@@ -281,14 +276,14 @@ double control_shared_autonomy(const PolicyTypes policy,
         const int plan_horizon = T-t;
         //const int plan_horizon = std::min(T-t, MPC_HORIZON);
         
-        Vector<CONTROL_DIM> ut;
+        ControlVector ut;
         ilqr_begin_time = clock();
         if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
         {
             weighted_cntrl_world_1.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
             weighted_cntrl_world_2.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
-            const Vector<CONTROL_DIM> ut_with_obs = weighted_cntrl_world_1.compute_first_control(xt); 
-            const Vector<CONTROL_DIM> ut_without_obs = weighted_cntrl_world_2.compute_first_control(xt); 
+            const ControlVector ut_with_obs = weighted_cntrl_world_1.compute_first_control(xt); 
+            const ControlVector ut_without_obs = weighted_cntrl_world_2.compute_first_control(xt); 
             ut = obs_probability[0] * ut_with_obs + obs_probability[1] * ut_without_obs ;
         }
         else
@@ -299,7 +294,7 @@ double control_shared_autonomy(const PolicyTypes policy,
         //PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
         rollout_cost += ct_true_world(xt, ut, t);
-        const Vector<STATE_DIM> xt1 = dynamics(xt, ut);
+        const StateVector xt1 = dynamics(xt, ut);
 
         xt = xt1;
         states.push_back(xt);

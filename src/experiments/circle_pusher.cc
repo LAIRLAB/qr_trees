@@ -32,6 +32,10 @@ using Vector = Eigen::Matrix<double, rows, 1>;
 template <int rows, int cols>
 using Matrix = Eigen::Matrix<double, rows, cols>;
 
+// Useful typedef shorthands.
+using DynamicsFunc = std::function<Vector<STATE_DIM>(const Vector<STATE_DIM> &,const Vector<CONTROL_DIM> &)>;
+using Branch = ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM>;
+
 // Used for the first time step when the object pose is uknown 
 constexpr double UNKOWN_OBJ_POS = -9999; 
 
@@ -115,13 +119,21 @@ double control_pusher(const PolicyTypes policy,
 {
     using namespace std::placeholders;
 
+    const Circle pusher(robot_radius, x0[State::POS_X], x0[State::POS_Y]);
+
+    const Circle true_object(object_radius, -5, 10);
+    const Circle other_object(object_radius, 5, 10);
+
+    const std::vector<Circle> possible_objects = {true_object, other_object};
+    const int true_obj_index = 0;
+    std::vector<double> obs_probability = {0.5, 0.5};
+    IS_EQUAL(possible_objects.size(), obs_probability.size());
+    IS_BETWEEN_LOWER_INCLUSIVE(true_obj_index, 0, possible_objects.size());
+
     T = 25;
 	const double dt = 0.5;
     IS_GREATER(T, 1);
     IS_GREATER(dt, 0);
-
-    const Eigen::Vector2d true_obj_start_pos(-5, 10);
-    const Eigen::Vector2d other_obj_start_pos(5, 10);
 
     DEBUG("Running with policy \"" << to_string(policy))
 
@@ -165,40 +177,40 @@ double control_pusher(const PolicyTypes policy,
 
     //const std::array<double, 2> CONTROL_LIMS = {{-5, 5}};
     
-    const Circle pusher(robot_radius, x0[State::POS_X], x0[State::POS_Y]);
-    const Circle true_object(object_radius, true_obj_start_pos);
-    pusher::PusherWorld true_world(pusher, true_object, 
-            Eigen::Vector2d(x0[State::V_X], x0[State::V_Y]), 
-            dt);
-
-    const Circle other_object(object_radius, other_obj_start_pos);
-    pusher::PusherWorld other_world(pusher, true_object, 
-            Eigen::Vector2d(x0[State::V_X], x0[State::V_Y]), 
-            dt);
-
     constexpr bool verbose = false;
     constexpr int max_iters_begin = 500;
     constexpr int max_iters = 300;
     constexpr double mu = 0.05;
     constexpr double convg_thresh = 1e-4;
     constexpr double start_alpha = 10;
-
-    const int true_obj_index = 0;
-    std::vector<double> obs_probability = {0.5, 0.5};
-    const std::vector<Eigen::Vector2d> object_poses = {true_obj_start_pos, other_obj_start_pos};
     
     // We use a version that can take UNKOWN_OBJ_POS and convert it on the next
     // time step to resolve the ambiguity.
-    auto true_dynamics = std::bind(pusher_dynamics, _1, _2, std::cref(true_obj_start_pos), std::ref(true_world));
-    auto other_dynamics = std::bind(pusher_dynamics, _1, _2, std::cref(other_obj_start_pos), std::ref(true_world));
+
+    std::vector<DynamicsFunc> dynamics_funcs; 
+    std::vector<pusher::PusherWorld> worlds; 
+    dynamics_funcs.reserve(possible_objects.size());
+    worlds.reserve(possible_objects.size());
+    for(const auto &object : possible_objects)
+    {
+        worlds.emplace_back(pusher, object, Eigen::Vector2d(x0[State::V_X], x0[State::V_Y]), dt);
+        dynamics_funcs.push_back(std::bind(pusher_dynamics, _1, _2, 
+                    std::cref(object.position()), std::ref(worlds.back())));
+    }
+    auto true_dynamics = dynamics_funcs[true_obj_index];
+    auto true_world = worlds[true_obj_index];
 
     // Setup the true system solver.
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> true_branch(true_dynamics, cT, ct, 1.0);
+    const Branch true_branch(true_dynamics, cT, ct, 1.0);
     ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> true_chain_solver({true_branch});
 
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_true_branch(true_dynamics, cT, ct, 0.5);
-    ilqr::HindsightBranch<STATE_DIM,CONTROL_DIM> hindsight_other_branch(other_dynamics, cT, ct, 0.5);
-    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_true_branch, hindsight_other_branch});
+    std::vector<Branch> hindsight_branches; 
+    hindsight_branches.reserve(possible_objects.size());
+    for (size_t i = 0; i < possible_objects.size(); ++i)
+    {
+        hindsight_branches.emplace_back(dynamics_funcs[i], cT, ct, obs_probability[i]);
+    }
+    ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_branches});
 
     ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> *solver = nullptr; 
     switch(policy)
@@ -210,9 +222,11 @@ double control_pusher(const PolicyTypes policy,
         solver = &hindsight_solver;
         break;
     case PolicyTypes::ARGMAX_ILQR:
+        IS_TRUE(false); // unsupported for now
         //solver = &argmax_solver;
         break;
     case PolicyTypes::PROB_WEIGHTED_CONTROL:
+        IS_TRUE(false); // unsupported for now
         // do nothing as this requires two separate solvers
         break;
     };
@@ -224,7 +238,6 @@ double control_pusher(const PolicyTypes policy,
 
     std::vector<Vector<pusher::Control::CONTROL_DIM>> controls;
     //return solver->forward_pass(0, x0, states, controls, 1.0); 
-
 
     pusher::PusherWorld test_world = true_world;
     bool uncertainty_resolved = false;
@@ -264,7 +277,7 @@ double control_pusher(const PolicyTypes policy,
         {
             // If we would have touched any of the obstacles, then we would observe
             // them.
-            for (size_t i = 0; i < object_poses.size(); ++i)
+            for (size_t i = 0; i < possible_objects.size(); ++i)
             {
                 // If we have already elimated this option, then continue.
                 if (obs_probability[i] == 0)
@@ -272,7 +285,7 @@ double control_pusher(const PolicyTypes policy,
                     continue;
                 }
 
-                const Eigen::Vector2d &obj_pos = object_poses[i];
+                const Eigen::Vector2d &obj_pos = possible_objects[i].position();
                 auto test_dynamics = std::bind(pusher_dynamics, _1, _2, std::cref(obj_pos), std::ref(test_world));
 
                 Vector<STATE_DIM> xt_test = xt;
@@ -302,7 +315,7 @@ double control_pusher(const PolicyTypes policy,
         case PolicyTypes::TRUE_ILQR:
             break;
         case PolicyTypes::HINDSIGHT:
-            for (size_t i = 0; i < object_poses.size(); ++i)
+            for (size_t i = 0; i < possible_objects.size(); ++i)
             {
                 solver->set_branch_probability(i, obs_probability[i]);
             }

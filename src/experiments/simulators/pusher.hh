@@ -35,6 +35,9 @@ enum Control
     CONTROL_DIM
 };
 
+// Provides dynamics functions for pushing a circle with another circle. The dynamics are mostly
+// stateless (they do not hold time-varying state). The 'stateful' information that is used in the dynamics
+// are the radii of the pusher and object.
 class PusherWorld
 {
 public:
@@ -43,7 +46,9 @@ public:
 
     Vector<STATE_DIM> state_vector();
 
+    // Simply calls the step() function with the stored dt.
     Vector<STATE_DIM> operator()(const Vector<STATE_DIM>& x, const Vector<CONTROL_DIM>& u);
+
     Vector<STATE_DIM> step(const Vector<STATE_DIM>& xt, const Vector<CONTROL_DIM>& ut, const double dt);
 
     void reset(const Vector<STATE_DIM>& x);
@@ -69,7 +74,8 @@ private:
     // Is the object in contact and stuck to the pusher.
     bool object_stuck_ = false;
 
-    // Returns true if object is stuck to pusher.
+    // Returns true if object_ is stuck to pusher_. 
+    // Sets the object_'s pose to be projected out of intersection
     bool intersect_and_project_obj(); 
 };
 

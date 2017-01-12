@@ -23,3 +23,7 @@ pybind11_add_module(ilqr_diffdrive ilqr_diffdrive.cc)
 set_target_properties(ilqr_diffdrive PROPERTIES SUFFIX ".so")
 target_link_libraries(ilqr_diffdrive PRIVATE single_obs_diffdrive)
 
+pybind11_add_module(shared_autonomy_circle_bindings shared_autonomy_circle_bindings.cc)
+set_target_properties(shared_autonomy_circle_bindings PROPERTIES SUFFIX ".so")
+target_link_libraries(shared_autonomy_circle_bindings PRIVATE shared_autonomy_circle)
+

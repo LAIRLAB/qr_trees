@@ -26,8 +26,6 @@ namespace py = pybind11;
 
 PYBIND11_PLUGIN(shared_autonomy_circle_bindings) 
 {
-    //using Circle = circle_world::Circle;
-    //using CircleWorld = circle_world::CircleWorld;
 
     py::module m("shared_autonomy_circle_bindings", "iLQR on shared autonomy circle world.");
 

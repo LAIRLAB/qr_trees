@@ -62,10 +62,25 @@ PYBIND11_PLUGIN(pusher_world)
                 });
         ;
 
+
+    py::enum_<PolicyTypes>(m, "PolicyTypes")
+    .value("HINDSIGHT", PolicyTypes::HINDSIGHT)
+    .value("TRUE_ILQR", PolicyTypes::TRUE_ILQR)
+    .value("ARGMAX_ILQR", PolicyTypes::ARGMAX_ILQR)
+    .value("PROB_WEIGHTED_CONTROL", PolicyTypes::PROB_WEIGHTED_CONTROL)
+    .export_values() 
+    .def("__str__", &to_string);
+
     m.def("control_pusher", 
-            []() { 
+            [](const PolicyTypes policy, 
+                const int true_obj_index
+                ) 
+            { 
+                const std::vector<double> &obj_probability = {0.5, 0.5};
+                const std::vector<Circle> &possible_objects = {Circle(3,-5,0), Circle(3,5,0)};
                 std::vector<pusher::Vector<pusher::STATE_DIM>> states;
-                const double rollout_cost = control_pusher(PolicyTypes::HINDSIGHT, states);
+                const double rollout_cost = control_pusher(policy, possible_objects, obj_probability, 
+                    true_obj_index, states);
                 return std::make_tuple(rollout_cost, states);
             });
 

@@ -21,6 +21,9 @@ import matplotlib.pyplot as plt
 
 from IPython import embed
 
+robot_radius = 4;
+obj_radius = 3;
+
 def draw_world(ax, world, show=True):
     pusher = world.pusher()
     obj = world.object()
@@ -139,13 +142,17 @@ def animate_world(robot_poses, obj_poses):
 
 
 if __name__ == "__main__":
-    cost, states = pw.control_pusher()
+
+    policy = pw.PolicyTypes.HINDSIGHT
+
+    possible_objects  = [so.Circle(obj_radius, -5, 0), so.Circle(obj_radius, 5, 0)]
+    obj_probability_prior = [0.5, 0.5]
+    cost, states = pw.control_pusher(policy, 0)
+    #cost, states = pw.control_pusher(policy, possible_objects, obj_probability_prior, 0)
+
     states = np.asarray(states)
     robot_poses = states[:, 0:2]
     obj_poses = states[:, 4:6]
-
-    robot_radius = 4;
-    obj_radius = 3;
 
     plt.figure(figsize=(10, 8))
     ax = plt.gca()

@@ -43,5 +43,8 @@ std::string to_string(const PolicyTypes policy_type)
 // :param OBS_PRIOR - Prior for the policy that true_world is true, prior for
 //                    policy that the other_world is true.
 double control_pusher(const PolicyTypes policy, 
+        const std::vector<objects::Circle> &possible_objects,
+        const std::vector<double> &obj_probability_prior,
+        const int true_obj_index,
         std::vector<pusher::Vector<pusher::STATE_DIM>> &states
         );

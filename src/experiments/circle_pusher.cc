@@ -114,21 +114,31 @@ int get_argmax(const std::vector<double> &probs)
 } // namespace
 
 double control_pusher(const PolicyTypes policy, 
+        const std::vector<Circle> &possible_objects,
+        const std::vector<double> &obj_probability_prior,
+        const int true_obj_index,
         std::vector<pusher::Vector<pusher::STATE_DIM>> &states
         )
 {
     using namespace std::placeholders;
 
-    const Circle pusher(robot_radius, x0[State::POS_X], x0[State::POS_Y]);
+    const size_t num_possible_objects = possible_objects.size();
+    IS_GREATER(num_possible_objects, 0);
+    IS_EQUAL(obj_probability_prior.size(), num_possible_objects);
 
+    // Copy the prior and update it as we get observations.
+    std::vector<double> obj_probability = obj_probability_prior;
+
+    /*
     const Circle true_object(object_radius, -5, 10);
     const Circle other_object(object_radius, 5, 10);
 
     const std::vector<Circle> possible_objects = {true_object, other_object};
     const int true_obj_index = 0;
-    std::vector<double> obs_probability = {0.5, 0.5};
-    IS_EQUAL(possible_objects.size(), obs_probability.size());
+    std::vector<double> obj_probability = {0.5, 0.5};
+    IS_EQUAL(possible_objects.size(), obj_probability.size());
     IS_BETWEEN_LOWER_INCLUSIVE(true_obj_index, 0, possible_objects.size());
+    */
 
     T = 25;
 	const double dt = 0.5;
@@ -186,6 +196,8 @@ double control_pusher(const PolicyTypes policy,
     
     // We use a version that can take UNKOWN_OBJ_POS and convert it on the next
     // time step to resolve the ambiguity.
+    
+    const Circle pusher(robot_radius, x0[State::POS_X], x0[State::POS_Y]);
 
     std::vector<DynamicsFunc> dynamics_funcs; 
     std::vector<pusher::PusherWorld> worlds; 
@@ -208,7 +220,7 @@ double control_pusher(const PolicyTypes policy,
     hindsight_branches.reserve(possible_objects.size());
     for (size_t i = 0; i < possible_objects.size(); ++i)
     {
-        hindsight_branches.emplace_back(dynamics_funcs[i], cT, ct, obs_probability[i]);
+        hindsight_branches.emplace_back(dynamics_funcs[i], cT, ct, obj_probability[i]);
     }
     ilqr::iLQRHindsightSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_branches});
 
@@ -269,8 +281,8 @@ double control_pusher(const PolicyTypes policy,
         // We found the true object!
         if (xt1[State::OBJ_STUCK])
         {
-            std::for_each(obs_probability.begin(), obs_probability.end(), [](double &v) { v = 0; } );
-            obs_probability[true_obj_index] = 1;
+            std::for_each(obj_probability.begin(), obj_probability.end(), [](double &v) { v = 0; } );
+            obj_probability[true_obj_index] = 1;
             uncertainty_resolved = true;
         }
         if (!uncertainty_resolved)
@@ -280,7 +292,7 @@ double control_pusher(const PolicyTypes policy,
             for (size_t i = 0; i < possible_objects.size(); ++i)
             {
                 // If we have already elimated this option, then continue.
-                if (obs_probability[i] == 0)
+                if (obj_probability[i] == 0)
                 {
                     continue;
                 }
@@ -292,19 +304,19 @@ double control_pusher(const PolicyTypes policy,
                 xt_test[State::OBJ_X] = obj_pos[0];
                 xt_test[State::OBJ_Y] = obj_pos[1];
                 Vector<STATE_DIM> xt1_test = test_dynamics(xt_test, ut);
-                obs_probability[i] = 1;
+                obj_probability[i] = 1;
                 if (xt1_test[State::OBJ_STUCK] != xt1[State::OBJ_STUCK])
                 {
-                    obs_probability[i] = 0;
+                    obj_probability[i] = 0;
                 }
             }
             // normalize the probabilities.
-            const double Z = std::accumulate(obs_probability.begin(), obs_probability.end(), 0.0);
-            std::for_each(obs_probability.begin(), obs_probability.end(), [Z](double &v) { v /= Z; } );
-            const double Z_after = std::accumulate(obs_probability.begin(), obs_probability.end(), 0.0);
+            const double Z = std::accumulate(obj_probability.begin(), obj_probability.end(), 0.0);
+            std::for_each(obj_probability.begin(), obj_probability.end(), [Z](double &v) { v /= Z; } );
+            const double Z_after = std::accumulate(obj_probability.begin(), obj_probability.end(), 0.0);
             IS_ALMOST_EQUAL(Z_after, 1.0, 1e-3);
         }
-        IS_GREATER(obs_probability[true_obj_index], 0.0);
+        IS_GREATER(obj_probability[true_obj_index], 0.0);
         
 
         xt = xt1;
@@ -317,12 +329,12 @@ double control_pusher(const PolicyTypes policy,
         case PolicyTypes::HINDSIGHT:
             for (size_t i = 0; i < possible_objects.size(); ++i)
             {
-                solver->set_branch_probability(i, obs_probability[i]);
+                solver->set_branch_probability(i, obj_probability[i]);
             }
             break;
         case PolicyTypes::ARGMAX_ILQR:
         {
-            const int argmax_branch = get_argmax(obs_probability);
+            const int argmax_branch = get_argmax(obj_probability);
             const int other_branch = (argmax_branch == 0) ? 1 : 0;
             solver->set_branch_probability(argmax_branch, 1.0);
             solver->set_branch_probability(other_branch, 0.0);

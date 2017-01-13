@@ -6,6 +6,8 @@
 #include <utils/math_utils_temp.hh>
 #include <utils/debug_utils.hh>
 
+#include <filters/goal_predictor.hh>
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>

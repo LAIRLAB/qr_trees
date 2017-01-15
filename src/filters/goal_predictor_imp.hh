@@ -53,7 +53,7 @@ std::vector<double> GoalPredictor::get_goal_distribution()
     return goal_distribution;
 }
 
-double GoalPredictor::get_prob_at_ind(const std::size_t i)
+double GoalPredictor::get_prob_at_ind(const std::size_t i) const
 {
     return std::exp(log_goal_distribution_[i]);
 }
@@ -80,6 +80,21 @@ void GoalPredictor::normalize_log_distribution()
     {
         val -= log_normalization_val;
     }
+}
+
+std::ostream& operator<<(std::ostream& os, const GoalPredictor &goal_predictor)
+{  
+    os << "{";
+    for (size_t i=0; i < goal_predictor.get_num_goals(); i++)
+    {
+        if (i > 0)
+        {
+            os << ", ";
+        }
+        os << goal_predictor.get_prob_at_ind(i);
+    }
+    os << "}";
+    return os;  
 }
 
 

@@ -21,7 +21,8 @@ public:
     //get the current distribution over Goals
     std::vector<double> get_goal_distribution();
 
-    double get_prob_at_ind(const std::size_t i);
+    double get_prob_at_ind (const std::size_t i) const;
+    size_t get_num_goals() const {return log_goal_distribution_.size();}
 
     void update_goal_distribution(const std::vector<double>& q_values, const std::vector<double>& v_values);
 
@@ -30,6 +31,9 @@ public:
 private:
     std::vector<double> log_goal_distribution_;
 };
+
+
+std::ostream& operator<<(std::ostream& os, const GoalPredictor &goal_predictor);
 
 } //filters
 

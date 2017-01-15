@@ -9,6 +9,9 @@ target_link_libraries(test_multivariate_gaussian utils helpers)
 add_executable(test_discrete_filter test_discrete_filter.cc)
 target_link_libraries(test_discrete_filter simulators)
 
+add_executable(test_goal_predictor test_goal_predictor.cc)
+target_link_libraries(test_goal_predictor)
+
 add_executable(test_ilqr_taylor_expansions test_ilqr_taylor_expansions.cc)
 target_link_libraries(test_ilqr_taylor_expansions ilqr lqr utils)
 

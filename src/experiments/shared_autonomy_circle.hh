@@ -6,6 +6,7 @@
 #pragma once
 
 #include <experiments/simulators/circle_world.hh>
+#include <experiments/simulators/directdrive.hh>
 
 #include <array>
 #include <string>
@@ -41,10 +42,11 @@ std::string to_string(const PolicyTypes policy_type)
 
 // :param OBS_PRIOR - Prior for the policy that true_world is true, prior for
 //                    policy that the other_world is true.
-double control_shared_autonomy(const PolicyTypes policy, 
-        const circle_world::CircleWorld &true_world,
-        const circle_world::CircleWorld &other_world,
-        const std::array<double, 2> &OBS_PRIOR,
+double control_shared_autonomy(const PolicyTypes policy,
+        const circle_world::CircleWorld &world,
+        const std::vector<simulators::directdrive::StateVector>& goal_states,
+        const std::vector<double>& goal_priors,
+        const int true_goal_ind,
         std::string &state_output_fname,
         std::string &obstacle_output_fname
         );

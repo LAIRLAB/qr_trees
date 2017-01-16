@@ -46,6 +46,21 @@ ControlVector u_nominal;
 
 int T;
 
+double ct(const StateVector &x, const ControlVector &u, const int t, const CircleWorld &world, const StateVector& goal_state);
+double cT(const StateVector &x, const StateVector& goal_state);
+
+struct Goal {
+    
+    Goal(const StateVector& goal_state, double prob, const CircleWorld& world)
+        : goal_state_(goal_state), prob_(prob), cT_(std::bind(cT, std::placeholders::_1, goal_state)), ct_(std::bind(ct, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, world, goal_state))
+    {}
+
+    StateVector goal_state_;
+    double prob_;
+    std::function<double(const StateVector&)> cT_;
+    std::function<double(const StateVector&, const ControlVector&, const int)> ct_;
+};
+
 double obstacle_cost(const CircleWorld &world, const double robot_radius, const StateVector &xt)
 {
     Eigen::Vector2d robot_pos;
@@ -64,7 +79,7 @@ double obstacle_cost(const CircleWorld &world, const double robot_radius, const 
     return cost;
 }
 
-double ct(const StateVector &x, const ControlVector &u, const int t, const CircleWorld &world)
+double ct(const StateVector &x, const ControlVector &u, const int t, const CircleWorld &world, const StateVector& goal_state)
 {
     double cost = 0;
 
@@ -86,9 +101,9 @@ double ct(const StateVector &x, const ControlVector &u, const int t, const Circl
 }
 
 // Final timestep cost function
-double cT(const StateVector &x)
+double cT(const StateVector &x, const StateVector& goal_state)
 {
-    const StateVector dx = x - xT;
+    const StateVector dx = x - goal_state;
     return 0.5*(dx.transpose()*QT*dx)[0];
 }
 
@@ -125,22 +140,14 @@ void obstacles_to_file(const CircleWorld &world, const std::string &fname)
     file.close();
 }
 
-int get_argmax(const std::array<double, 2> &prob)
-{
-    if (prob[0] > prob[1])
-    {
-        return 0;
-    }
-    return 1;
-}
-
 
 } // namespace
 
 double control_shared_autonomy(const PolicyTypes policy,
-        const CircleWorld &true_world,
-        const CircleWorld &other_world,
-        const std::array<double, 2> &OBS_PRIOR,
+        const CircleWorld &world,
+        const std::vector<StateVector>& goal_states,
+        const std::vector<double>& goal_priors,
+        const int true_goal_ind,
         std::string &state_output_fname,
         std::string &obstacle_output_fname
         )
@@ -150,43 +157,38 @@ double control_shared_autonomy(const PolicyTypes policy,
     const std::string states_fname = "states.csv";
     const std::string obstacles_fname = "obstacles.csv";
 
-    const std::array<double, 4> world_dims = true_world.dimensions();
-    IS_TRUE(std::equal(world_dims.begin(), world_dims.begin(), true_world.dimensions().begin()));
+    const std::array<double, 4> world_dims = world.dimensions();
+    IS_TRUE(std::equal(world_dims.begin(), world_dims.begin(), world.dimensions().begin()));
 
     // Currently each can only have 1 obstacle.
-    IS_LESS_EQUAL(true_world.obstacles().size(), 1);
-    IS_LESS_EQUAL(other_world.obstacles().size(), 1);
+    IS_LESS_EQUAL(world.obstacles().size(), 1);
     
 
     T = 50;
-	const double dt = 1.0/6.0;
+    const double dt = 1.0/6.0;
     IS_GREATER(T, 1);
     IS_GREATER(dt, 0);
 
     DEBUG("Running with policy \"" << to_string(policy)
             << "\" with num obs in true= \"" 
-            << true_world.obstacles().size() << "\"");
+            << world.obstacles().size() << "\"");
 
-	xT = StateVector::Zero();
-	xT[State::POS_X] = 0;
-	xT[State::POS_Y] = 25;
+    x0 = StateVector::Zero();
+    x0[State::POS_X] = 0;
+    x0[State::POS_Y] = -25;
 
-	x0 = StateVector::Zero();
-	x0[State::POS_X] = 0;
-	x0[State::POS_Y] = -25;
+    Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
+    //	const double rot_cost = 0.5;
+    //    Q(State::THETA, State::THETA) = rot_cost;
+    //    Q(State::dV_LEFT, State::dV_LEFT) = 0.1;
+    //
+    QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity();
+    //    QT(State::THETA, State::THETA) = 50.0;
+    //    QT(State::dTHETA, State::dTHETA) = 5.0;
+    //    QT(State::dV_LEFT, State::dV_LEFT) = 5.0;
+    //    QT(State::dV_RIGHT, State::dV_RIGHT) = 5.0;
 
-	Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
-//	const double rot_cost = 0.5;
-//    Q(State::THETA, State::THETA) = rot_cost;
-//    Q(State::dV_LEFT, State::dV_LEFT) = 0.1;
-//
-  QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity();
-//    QT(State::THETA, State::THETA) = 50.0;
-//    QT(State::dTHETA, State::dTHETA) = 5.0;
-//    QT(State::dV_LEFT, State::dV_LEFT) = 5.0;
-//    QT(State::dV_RIGHT, State::dV_RIGHT) = 5.0;
-
-	R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
+    R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
     // Initial linearization points are linearly interpolated states and zero
     // control.
@@ -198,36 +200,45 @@ double control_shared_autonomy(const PolicyTypes policy,
 
     auto dynamics = system;
 
-    constexpr bool verbose = false;
-    constexpr int max_iters = 300;
-    constexpr double mu = 0.25;
-    constexpr double convg_thresh = 1e-4;
-    constexpr double start_alpha = 1;
-
     // Setup the cost function with different environments
-    auto ct_true_world = std::bind(ct, _1, _2, _3, true_world);
-    auto ct_other_world = std::bind(ct, _1, _2, _3, other_world);
+    //auto ct_world = std::bind(ct, _1, _2, _3, world);
     
-    std::array<double, 2> obs_probability = OBS_PRIOR;
+    std::vector<Goal> goals;
+    for (size_t i=0; i < goal_states.size(); ++i)
+    {
+        goals.emplace_back(goal_states[i], goal_priors[i], world);
+    }
 
+//    std::vector<std::function<decltype(std::bind(cT, _1, goal_states[0]))> > goal_cT;
+//    for (size_t i=0; i < goal_states.size(); i++)
+//    {
+//        goal_cT.emplace_back(std::bind(cT, _1, goal_states[i]));
+//    }
+
+   
     // Setup the true system solver.
-    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> true_branch(dynamics, cT, ct_true_world, 1.0);
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> true_branch(dynamics, goals[true_goal_ind].cT_, goals[true_goal_ind].ct_, 1.0);
     ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> true_chain_solver({true_branch});
 
     // Setup the "our method" hindsight optimization approach.
-    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> hindsight_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
-    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> hindsight_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
-    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> hindsight_solver({hindsight_world_1, hindsight_world_2});
+    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> hindsight_worlds;
+    for (auto &goal: goals)
+    {
+        hindsight_worlds.emplace_back(dynamics, goal.cT_, goal.ct_, goal.prob_);
+    }
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> hindsight_solver(hindsight_worlds);
 
     // The argmax approach.
-    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> argmax_world_1(dynamics, cT, ct_true_world, obs_probability[0]);
-    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> argmax_world_2(dynamics, cT, ct_other_world, obs_probability[1]);
-    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> argmax_solver({argmax_world_1, argmax_world_2});
-    const int argmax_branch = get_argmax(obs_probability);
-    const int other_branch = (argmax_branch == 0) ? 1 : 0;
+    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> argmax_worlds;
+    for (auto &goal: goals)
+    {
+        argmax_worlds.emplace_back(dynamics, goal.cT_, goal.ct_, 0.);
+    }
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> argmax_solver(argmax_worlds);
+    const int argmax_branch = std::distance(goal_priors.begin(), std::max_element(goal_priors.begin(), goal_priors.end()));
     argmax_solver.set_branch_probability(argmax_branch, 1.0);
-    argmax_solver.set_branch_probability(other_branch, 0.0);
 
+    /*
     // Weighted control approach.
     ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> branch_world_1(dynamics, cT, ct_true_world, 1.0);
     ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> branch_world_2(dynamics, cT, ct_other_world, 1.0);
@@ -252,6 +263,11 @@ double control_shared_autonomy(const PolicyTypes policy,
         break;
     };
 
+    constexpr bool verbose = false;
+    constexpr int max_iters = 300;
+    constexpr double mu = 0.25;
+    constexpr double convg_thresh = 1e-4;
+    constexpr double start_alpha = 1;
 
     std::vector<StateVector> states;
 
@@ -387,5 +403,9 @@ double control_shared_autonomy(const PolicyTypes policy,
     SUCCESS("Wrote obstacles to: " << obstacle_output_fname);
     
     return rollout_cost;
+
+    */
+
+    return 0.;
 }
 

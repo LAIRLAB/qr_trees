@@ -4,22 +4,28 @@
 
 #include <array>
 
+using StateVector = simulators::directdrive::StateVector;
+
 int main()
 {
     double cost_to_go = 0;
 
-    std::array<double, 2> probs = {{0.1, 0.9}};
 
     std::string state_output_fname, obstacle_output_fname;
 
     std::array<double, 4> world_dims = {{-30, 30, -30, 30}};
-    circle_world::CircleWorld w1(world_dims);
-    circle_world::CircleWorld w2(world_dims);
-    w1.add_obstacle(10, -2, 0);
-    w2.add_obstacle(10, 0, 2);
+    circle_world::CircleWorld world(world_dims);
+    world.add_obstacle(10, 0, 0);
 
-    cost_to_go = control_shared_autonomy(PolicyTypes::TRUE_ILQR, w1, w2, 
-            probs, state_output_fname, obstacle_output_fname);
+    std::vector<double> goal_priors;
+    std::vector<StateVector> goal_states;
+
+    goal_states.push_back(StateVector(25, 3));
+    goal_priors.push_back(0.5);
+    goal_states.push_back(StateVector(25, -3));
+    goal_priors.push_back(0.5);
+
+    cost_to_go = control_shared_autonomy(PolicyTypes::TRUE_ILQR, world, goal_states, goal_priors, 0, state_output_fname, obstacle_output_fname);
     PRINT("\n");
 
     return 0;

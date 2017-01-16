@@ -38,21 +38,21 @@ PYBIND11_PLUGIN(shared_autonomy_circle_bindings)
     .export_values() 
     .def("__str__", &to_string);
 
-    m.def("control_shared_autonomy", [](PolicyTypes policy, 
-                CircleWorld &true_world, 
-                CircleWorld &other_world, 
-                std::array<double, 2> prior,
-                std::string state_fname = "",
-                std::string obs_fname = ""
-                ) 
-            {
-                const double cost_to_go
-                    = control_shared_autonomy(policy, true_world, 
-                        other_world, prior,
-                        state_fname, obs_fname);
-                return std::make_tuple(cost_to_go, state_fname, obs_fname); 
-            }, 
-            "Function for running iLQR on shared autonomy circle world.");
+//    m.def("control_shared_autonomy", [](PolicyTypes policy, 
+//                CircleWorld &true_world, 
+//                CircleWorld &other_world, 
+//                std::array<double, 2> prior,
+//                std::string state_fname = "",
+//                std::string obs_fname = ""
+//                ) 
+//            {
+//                const double cost_to_go
+//                    = control_shared_autonomy(policy, true_world, 
+//                        other_world, prior,
+//                        state_fname, obs_fname);
+//                return std::make_tuple(cost_to_go, state_fname, obs_fname); 
+//            }, 
+//            "Function for running iLQR on shared autonomy circle world.");
     
     add_circle_class(m);
     add_circle_world_class(m);

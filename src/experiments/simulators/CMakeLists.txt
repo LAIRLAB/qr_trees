@@ -1,5 +1,6 @@
 add_library(simulators 
     SHARED 
+        user_goal.cc
         circle_world.cc
         diffdrive.cc
         directdrive.cc

@@ -20,9 +20,9 @@ int main()
     std::vector<double> goal_priors;
     std::vector<StateVector> goal_states;
 
-    goal_states.push_back(StateVector(25, 3));
+    goal_states.push_back(StateVector(3, 25));
     goal_priors.push_back(0.5);
-    goal_states.push_back(StateVector(25, -3));
+    goal_states.push_back(StateVector(-3, 25));
     goal_priors.push_back(0.5);
 
     cost_to_go = control_shared_autonomy(PolicyTypes::HINDSIGHT, world, goal_states, goal_priors, 0, state_output_fname, obstacle_output_fname);

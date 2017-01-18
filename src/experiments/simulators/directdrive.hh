@@ -58,6 +58,6 @@ private:
     std::array<double, 4> world_lims_;
 };
 
-StateVector continuous_dynamics(const StateVector& x, const ControlVector& u) { return u;}
+inline StateVector continuous_dynamics(const StateVector& x, const ControlVector& u) { return u;}
 } // namespace directdrive
 } // namespace simulators

@@ -36,6 +36,6 @@ StateVector DirectDrive::operator()(const StateVector& x, const ControlVector& u
 }
 
 
-} // namespace diffdrive
+} // namespace directdrive
 } // namespace simulators
 

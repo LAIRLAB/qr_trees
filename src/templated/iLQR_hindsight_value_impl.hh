@@ -423,8 +423,6 @@ inline double iLQRHindsightValueSolver<xdim, udim>::compute_value(const int bran
 {
     IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
     const int T = timesteps();
-    PRINT(T);
-    PRINT(t);
     IS_BETWEEN_INCLUSIVE(t, 0, T+1);
 
     const HindsightBranchValue<xdim,udim> &branch = branches_[branch_num];

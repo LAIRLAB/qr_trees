@@ -38,3 +38,8 @@ Eigen::MatrixXd make_random_psd(const int dim, const double min_eig_val);
 std::vector<Eigen::VectorXd> linearly_interpolate(const int t0, 
         const Eigen::VectorXd& x_t0, const int T, const Eigen::VectorXd& x_T);
 
+template <typename T>
+inline size_t argmax(std::vector<T> v)
+{
+    return std::distance(v.begin(), std::max_element(v.begin(), v.end()));
+}

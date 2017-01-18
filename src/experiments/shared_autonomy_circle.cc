@@ -1,13 +1,16 @@
 #include <experiments/shared_autonomy_circle.hh>
 
+#include <experiments/simulators/user_goal.hh>
 #include <experiments/simulators/directdrive.hh>
 #include <experiments/simulators/circle_world.hh>
 #include <templated/iLQR_hindsight_value.hh>
 #include <utils/math_utils_temp.hh>
 #include <utils/debug_utils.hh>
 #include <utils/print_helpers.hh>
+#include <utils/helpers.hh>
 
 #include <filters/goal_predictor.hh>
+
 
 #include <algorithm>
 #include <cmath>
@@ -35,79 +38,11 @@ using Matrix = Eigen::Matrix<double, rows, cols>;
 using StateVector = simulators::directdrive::StateVector;
 using ControlVector = simulators::directdrive::ControlVector;
 
-double robot_radius = 3.35/2.0; // iRobot create;
-double obstacle_factor = 300.0;
-double scale_factor = 1.0e0;
-
-Matrix<STATE_DIM, STATE_DIM> Q;
-Matrix<STATE_DIM, STATE_DIM> QT; // Quadratic state cost for final timestep.
-Matrix<CONTROL_DIM, CONTROL_DIM> R;
-StateVector xT; // Goal state for final timestep.
 StateVector x0; // Start state for 0th timestep.
 ControlVector u_nominal; 
 
 int T;
 
-double ct(const StateVector &x, const ControlVector &u, const int t, const CircleWorld &world, const StateVector& goal_state);
-double cT(const StateVector &x, const StateVector& goal_state);
-
-struct Goal {
-    
-    Goal(const StateVector& goal_state, double prob, const CircleWorld& world)
-        : goal_state_(goal_state), prob_(prob), cT_(std::bind(cT, std::placeholders::_1, goal_state)), ct_(std::bind(ct, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, world, goal_state))
-    {}
-
-    StateVector goal_state_;
-    double prob_;
-    std::function<double(const StateVector&)> cT_;
-    std::function<double(const StateVector&, const ControlVector&, const int)> ct_;
-};
-
-double obstacle_cost(const CircleWorld &world, const double robot_radius, const StateVector &xt)
-{
-    Eigen::Vector2d robot_pos;
-    robot_pos << xt[State::POS_X], xt[State::POS_Y];
-
-    // Compute minimum distance to the edges of the world.
-    double cost = 0;
-
-    auto obstacles = world.obstacles();
-    for (size_t i = 0; i < obstacles.size(); ++i) {
-        Eigen::Vector2d d = robot_pos - obstacles[i].position();
-        double distr = d.norm(); 
-        double dist = distr - robot_radius - obstacles[i].radius();
-        cost += obstacle_factor * exp(-scale_factor*dist);
-    }
-    return cost;
-}
-
-double ct(const StateVector &x, const ControlVector &u, const int t, const CircleWorld &world, const StateVector& goal_state)
-{
-    double cost = 0;
-
-    // position
-//    if (t == 0)
-//    {
-//        StateVector dx = x - x0;
-//        cost += 0.5*(dx.transpose()*Q*dx)[0];
-//    }
-
-    // Control cost
-    //const ControlVector du = u - u_nominal;
-    //cost += 0.5*(du.transpose()*R*du)[0];
-    cost += 0.5*(u.transpose()*R*u)[0];
-
-    cost += obstacle_cost(world, robot_radius, x);
-
-    return cost;
-}
-
-// Final timestep cost function
-double cT(const StateVector &x, const StateVector& goal_state)
-{
-    const StateVector dx = x - goal_state;
-    return 0.5*(dx.transpose()*QT*dx)[0];
-}
 
 void states_to_file(const StateVector& x0, const StateVector& xT, 
         const std::vector<StateVector> &states, 
@@ -181,19 +116,6 @@ double control_shared_autonomy(const PolicyTypes policy,
     x0[State::POS_X] = 0;
     x0[State::POS_Y] = -25;
 
-    Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
-    //	const double rot_cost = 0.5;
-    //    Q(State::THETA, State::THETA) = rot_cost;
-    //    Q(State::dV_LEFT, State::dV_LEFT) = 0.1;
-    //
-    QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity();
-    //    QT(State::THETA, State::THETA) = 50.0;
-    //    QT(State::dTHETA, State::dTHETA) = 5.0;
-    //    QT(State::dV_LEFT, State::dV_LEFT) = 5.0;
-    //    QT(State::dV_RIGHT, State::dV_RIGHT) = 5.0;
-
-    R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
-
     // Initial linearization points are linearly interpolated states and zero
     // control.
     u_nominal[0] = 0.0;
@@ -205,7 +127,7 @@ double control_shared_autonomy(const PolicyTypes policy,
     auto dynamics = system;
 
     //construct goal objects, which includes their cost functions
-    std::vector<Goal> goals;
+    std::vector<user_goal::User_Goal> goals;
     for (size_t i=0; i < goal_states.size(); ++i)
     {
         goals.emplace_back(goal_states[i], goal_priors[i], world);
@@ -221,56 +143,72 @@ double control_shared_autonomy(const PolicyTypes policy,
 //        goal_cT.emplace_back(std::bind(cT, _1, goal_states[i]));
 //    }
 
-   
-    // Setup the true system solver.
-    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> true_branch(dynamics, goals[true_goal_ind].cT_, goals[true_goal_ind].ct_, 1.0);
-    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> true_chain_solver({true_branch});
-
-    // Setup the "our method" hindsight optimization approach.
-    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> hindsight_worlds;
-    for (auto &goal: goals)
-    {
-        hindsight_worlds.emplace_back(dynamics, goal.cT_, goal.ct_, goal.prob_);
-    }
-    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> hindsight_solver(hindsight_worlds);
-
-    // The argmax approach.
-    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> argmax_worlds;
-    size_t argmax_branch = std::distance(goal_priors.begin(), std::max_element(goal_priors.begin(), goal_priors.end()));
-    for (size_t i=0; i < goals.size(); i++)
-    {
-        auto &goal = goals[i];
-        if (i == argmax_branch)
-            argmax_worlds.emplace_back(dynamics, goal.cT_, goal.ct_, 1.);
-        else
-            argmax_worlds.emplace_back(dynamics, goal.cT_, goal.ct_, 0.);
-    }
-    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> argmax_solver(argmax_worlds);
-
-    // Weighted control approach.
-//    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> branch_world_1(dynamics, cT, ct_true_world, 1.0);
-//    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> branch_world_2(dynamics, cT, ct_other_world, 1.0);
-//    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_1({branch_world_1});
-//    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> weighted_cntrl_world_2({branch_world_2});
+  
 
 
-    // TODO need default constructor or something to set it to.
-    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> *solver = nullptr; 
+    //setup the branches for different policies
+    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> solver_branches;
     switch(policy)
     {
     case PolicyTypes::TRUE_ILQR:
-        solver = &true_chain_solver;
+    {
+        solver_branches.emplace_back(dynamics, goals[true_goal_ind].cT_, goals[true_goal_ind].ct_, 1.0);
         break;
+    }
     case PolicyTypes::HINDSIGHT:
-        solver = &hindsight_solver;
+    {
+        for (auto &goal: goals)
+        {
+            solver_branches.emplace_back(dynamics, goal.cT_, goal.ct_, goal.prob_);
+        }
         break;
-    case PolicyTypes::ARGMAX_ILQR:
-        solver = &argmax_solver;
-        break;
+    }
     case PolicyTypes::PROB_WEIGHTED_CONTROL:
+    {
+        for (auto &goal: goals)
+        {
+            solver_branches.emplace_back(dynamics, goal.cT_, goal.ct_, 1.0);
+        }
         // do nothing as this requires two separate solvers
         break;
+    }
+    case PolicyTypes::ARGMAX_ILQR:
+    {
+        size_t argmax_branch = std::distance(goal_priors.begin(), std::max_element(goal_priors.begin(), goal_priors.end()));
+        for (size_t i=0; i < goals.size(); i++)
+        {
+            auto &goal = goals[i];
+            if (i == argmax_branch)
+                solver_branches.emplace_back(dynamics, goal.cT_, goal.ct_, 1.);
+            else
+                solver_branches.emplace_back(dynamics, goal.cT_, goal.ct_, 0.);
+        }
+        break;
+    }
     };
+
+    std::vector<ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>> solvers; 
+
+    switch(policy)
+    {
+    case PolicyTypes::PROB_WEIGHTED_CONTROL:
+        //for prob weighted, one solver per branch
+        for (size_t i=0; i < solver_branches.size(); ++i)
+        {
+            std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> > onebranch_vec = {solver_branches[i]};
+            solvers.emplace_back( onebranch_vec);
+        }
+        break;
+    default:
+        //otherwise, one solver for all branches
+        solvers.emplace_back(solver_branches);
+        break;
+    };
+
+    // Setup a solver representing the user
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> user_branch(dynamics, goals[true_goal_ind].cT_, goals[true_goal_ind].ct_, 1.0);
+    ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> user_solver({user_branch});
+
 
     constexpr bool verbose = false;
     constexpr int max_iters = 300;
@@ -284,16 +222,11 @@ double control_shared_autonomy(const PolicyTypes policy,
     filters::GoalPredictor goal_predictor(goal_priors);  
 
     clock_t ilqr_begin_time = clock();
-    if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
+    for (auto &solver: solvers)
     {
-//        weighted_cntrl_world_1.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
-//        weighted_cntrl_world_2.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+        solver.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
     }
-    else
-    {
-        solver->solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
-    }
-    true_chain_solver.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+    user_solver.solve(T, x0, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
     //PRINT("Pre-solve" << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
     double rollout_cost = 0;
@@ -310,18 +243,21 @@ double control_shared_autonomy(const PolicyTypes policy,
         ControlVector ut;
         ControlVector user_ut;
         ilqr_begin_time = clock();
+
         if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
         {
-//            weighted_cntrl_world_1.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
-//            weighted_cntrl_world_2.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
-//            const ControlVector ut_with_obs = weighted_cntrl_world_1.compute_first_control(xt); 
-//            const ControlVector ut_without_obs = weighted_cntrl_world_2.compute_first_control(xt); 
-//            ut = obs_probability[0] * ut_with_obs + obs_probability[1] * ut_without_obs ;
-        }
-        else
-        {
-            solver->solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
-            ut = solver->compute_first_control(xt); 
+            //solve all 
+            ut.setZero();
+            for (size_t i=0; i < solvers.size(); i++)
+            {
+                solvers[i].solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+                ControlVector ut_this_solver = solvers[i].compute_first_control(xt);
+                ut += goal_predictor.get_prob_at_ind(i)*ut_this_solver;
+            }
+        } else {
+            //assume only one solver for these cases
+            solvers[0].solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+            ut = solvers[0].compute_first_control(xt); 
         }
 
         //PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
@@ -329,10 +265,9 @@ double control_shared_autonomy(const PolicyTypes policy,
         rollout_cost += ct_true_world(xt, ut, t);
         const StateVector xt1 = dynamics(xt, ut);
 
-
         //get the user action, compute by solving for true chain
-        true_chain_solver.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
-        user_ut = true_chain_solver.compute_first_control(xt); 
+        user_solver.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+        user_ut = user_solver.compute_first_control(xt); 
 
         //update predictor probabilities
         std::vector<double> q_values(NUM_GOALS);
@@ -344,8 +279,15 @@ double control_shared_autonomy(const PolicyTypes policy,
             std::vector<double> v_values(NUM_GOALS);
             for (size_t i=0; i < NUM_GOALS; i++)
             {
-                double v_xt = solver->compute_value( i, xt, t);
-                double v_xt1 = solver->compute_value( i, xt1, t+1);
+                double v_xt, v_xt1;
+                if (policy == PolicyTypes::PROB_WEIGHTED_CONTROL)
+                {
+                    v_xt = solvers[i].compute_value( 0, xt, 0);   
+                    v_xt1 = solvers[i].compute_value( 0, xt1, 1);
+                } else {
+                    v_xt = solvers[0].compute_value( i, xt, 0);   
+                    v_xt1 = solvers[0].compute_value( i, xt1, 1);
+                }
                 double c_xt = goals[i].ct_(xt, ut, t);
                 double q_xt = c_xt + v_xt1;
 
@@ -357,14 +299,22 @@ double control_shared_autonomy(const PolicyTypes policy,
 
             goal_predictor.update_goal_distribution(q_values, v_values);
             std::vector<double> updated_goal_distribution = goal_predictor.get_goal_distribution();
-            PRINT(updated_goal_distribution);
+            size_t argmax_goal = argmax(updated_goal_distribution);
 
+            //update goal probabilities
             for (size_t i=0; i < NUM_GOALS; i++)
-            {
+            { 
                 goals[i].prob_ = updated_goal_distribution[i];
-                solver->set_branch_probability(i, updated_goal_distribution[i]);
-            }  //TODO handle argmax and branched seperately
-            //maybe make function that sets all goal probabilities?
+                if (policy == PolicyTypes::HINDSIGHT)
+                {
+                    solvers[0].set_branch_probability(i, updated_goal_distribution[i]);
+                } else if (policy == PolicyTypes::ARGMAX_ILQR) {
+                    if (i == argmax_goal)
+                        solvers[0].set_branch_probability(i, 1.0);
+                    else
+                        solvers[0].set_branch_probability(i, 0.0);
+                }
+            }
                 
         }
 
@@ -372,27 +322,6 @@ double control_shared_autonomy(const PolicyTypes policy,
         states.push_back(xt);
 
 
-        // Update parts required based on policy.
-//        switch(policy)
-//        {
-//        case PolicyTypes::TRUE_ILQR:
-//            break;
-//        case PolicyTypes::HINDSIGHT:
-//            solver->set_branch_probability(0, obs_probability[0]);
-//            solver->set_branch_probability(1, obs_probability[1]);
-//            break;
-//        case PolicyTypes::ARGMAX_ILQR:
-//        {
-//            const int argmax_branch = get_argmax(obs_probability);
-//            const int other_branch = (argmax_branch == 0) ? 1 : 0;
-//            solver->set_branch_probability(argmax_branch, 1.0);
-//            solver->set_branch_probability(other_branch, 0.0);
-//            break;
-//        }
-//        case PolicyTypes::PROB_WEIGHTED_CONTROL:
-//            // do nothing as this requires two separate solvers
-//            break;
-//        };
 
     }
     rollout_cost += cT_true_world(xt);
@@ -421,7 +350,7 @@ double control_shared_autonomy(const PolicyTypes policy,
 
     state_output_fname = state_output_fname + "_" +  policy_fname + "_" + states_fname;
 
-    states_to_file(x0, xT, states, state_output_fname);
+    states_to_file(x0, goals[true_goal_ind].goal_state_, states, state_output_fname);
     SUCCESS("Wrote states to: " << state_output_fname);
 
     obstacle_output_fname = obstacle_output_fname + "_" + obstacles_fname;

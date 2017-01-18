@@ -24,55 +24,54 @@ import matplotlib.pyplot as plt
 
 
 if __name__ == "__main__":
-    obs_prior = [0.5, 0.5] 
     world_dims = [-30, 30, -30, 30]
 
-    w1 = ilqr.CircleWorld(world_dims)
-    w2 = ilqr.CircleWorld(world_dims)
+    world = ilqr.CircleWorld(world_dims)
 
-    obs_pos_1 = [-2, 0.0]
-    obs_pos_2 = [2, 0.0]
-
+    obs_pos_1 = [0, 0.0]
     obs_radius = 10.0
     obstacle_1 = ilqr.Circle(obs_radius, obs_pos_1);
-    obstacle_2 = ilqr.Circle(obs_radius, obs_pos_2);
 
     # add obstacle to world 1
-    w1.add_obstacle(obstacle_1);
-    # add obstacle to world 2
-    w2.add_obstacle(obstacle_2);
+    world.add_obstacle(obstacle_1);
+
+    goal_states = []
+    goal_states.append(np.array([-3., 25.]))
+    goal_states.append(np.array([3., 25.]))
+
+    goal_priors = [0.5, 0.5]
 
 
     cost, states_true_1, obs_fname_1 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
-            w1, w2, obs_prior, "true1", "true1")
-    cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
-            w2, w1, obs_prior, "true2", "true2")
-
-    cost, states_weighted_1, obs_fname_3 =\
-            ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
-                w1, w2, obs_prior, "weight3", "weight3")
-    cost, states_weighted_2, obs_fname_4 =\
-            ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
-                w2, w1, obs_prior, "weight4", "weight4")
-
-    cost, states_hind_1, obs_fname_5 =\
-            ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
-                w1, w2, obs_prior, "hind3", "hind3")
-    cost, states_hind_2, obs_fname_6 =\
-            ilqr.control_shared_autonomy(ilqr.HINDSIGHT,
-                w2, w1, obs_prior, "hind4", "hind4")
-
-    
-    print("Drawing world 1")
-    ax1 = vis.parse_draw_files([states_true_1, states_weighted_1, states_hind_1], obs_fname_1,
-            show=False) 
-    plt.title('World 1')
-
-    print("Drawing world 2")
-    ax2 = vis.parse_draw_files([states_true_2, states_weighted_2, states_hind_2], 
-            obs_fname_2, show=False) 
-    plt.title('World 2')
-    plt.show()
+            world, goal_states, goal_priors, 0, "true1", "true1")
+#    cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
+#            w2, w1, obs_prior, "true2", "true2")
+#
+#    cost, states_weighted_1, obs_fname_3 =\
+#            ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
+#                w1, w2, obs_prior, "weight3", "weight3")
+#    cost, states_weighted_2, obs_fname_4 =\
+#            ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
+#                w2, w1, obs_prior, "weight4", "weight4")
+#
+#    cost, states_hind_1, obs_fname_5 =\
+#            ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
+#                w1, w2, obs_prior, "hind3", "hind3")
+#    cost, states_hind_2, obs_fname_6 =\
+#            ilqr.control_shared_autonomy(ilqr.HINDSIGHT,
+#                w2, w1, obs_prior, "hind4", "hind4")
+#
+#    
+#    print("Drawing world 1")
+#    ax1 = vis.parse_draw_files([states_true_1, states_weighted_1, states_hind_1], obs_fname_1,
+#            show=False) 
+#    plt.title('World 1')
+#
+#    print("Drawing world 2")
+#    ax2 = vis.parse_draw_files([states_true_2, states_weighted_2, states_hind_2], 
+#            obs_fname_2, show=False) 
+#    plt.title('World 2')
+#    plt.show()
 
     embed()
 

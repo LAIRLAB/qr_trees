@@ -73,8 +73,8 @@ PYBIND11_PLUGIN(shared_autonomy_circle_bindings)
 
     m.def("control_shared_autonomy", [](PolicyTypes policy, 
                     CircleWorld &world,
-                    //py::list goal_states_list,//simulators::directdrive::StateVector goal_states,
-                    std::vector<Eigen::Vector2d> goal_states,
+                    py::list goal_states_list,//simulators::directdrive::StateVector goal_states,
+                    //std::vector<Eigen::Vector2d> goal_states,
                     std::vector<double> goal_priors,
                     int true_goal_ind,
                     std::string state_fname = "",

@@ -423,6 +423,8 @@ inline double iLQRHindsightValueSolver<xdim, udim>::compute_value(const int bran
 {
     IS_BETWEEN_LOWER_INCLUSIVE(branch_num, 0, branches_.size());
     const int T = timesteps();
+    PRINT(T);
+    PRINT(t);
     IS_BETWEEN_INCLUSIVE(t, 0, T+1);
 
     const HindsightBranchValue<xdim,udim> &branch = branches_[branch_num];
@@ -431,7 +433,7 @@ inline double iLQRHindsightValueSolver<xdim, udim>::compute_value(const int bran
     const Vector<xdim> zt = (xt - branch.xhat[t]);
 
     // Compute the quadratic value function. 
-    const double Jt = zt.transpose() *  branch.Vs[t] * zt + branch.Gs[t] * zt + branch.Ws[t];
+    const double Jt = zt.transpose() *  branch.Vs[t] * zt + (branch.Gs[t] * zt)(0,0) + branch.Ws[t];
     return Jt;
 }
 

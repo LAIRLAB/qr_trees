@@ -25,7 +25,7 @@ int main()
     goal_states.push_back(StateVector(25, -3));
     goal_priors.push_back(0.5);
 
-    cost_to_go = control_shared_autonomy(PolicyTypes::TRUE_ILQR, world, goal_states, goal_priors, 0, state_output_fname, obstacle_output_fname);
+    cost_to_go = control_shared_autonomy(PolicyTypes::HINDSIGHT, world, goal_states, goal_priors, 0, state_output_fname, obstacle_output_fname);
     PRINT("\n");
 
     return 0;

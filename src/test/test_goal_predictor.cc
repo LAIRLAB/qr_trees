@@ -1,6 +1,7 @@
 
 #include <filters/goal_predictor.hh>
 #include <utils/debug_utils.hh>
+#include <utils/print_helpers.hh>
 
 #include <vector>
 #include <algorithm>
@@ -9,25 +10,6 @@
 
 
 void normalize_vector(std::vector<double>& v);
-std::ostream& operator<<(std::ostream& os, const std::vector<double> &vec);
-
-std::ostream& operator<<(std::ostream& os, const std::vector<double> &vec)
-{
-    os << "{";
-    int i=0;
-    for (const auto& val: vec)
-    {
-        if (i > 0)
-        {
-            os << ", ";
-        }
-        os << val;
-        ++i;
-    }
-    os << "}";
-    return os;  
-}
-
 
 void normalize_vector(std::vector<double>& v)
 {

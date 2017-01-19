@@ -260,6 +260,8 @@ double control_shared_autonomy(const PolicyTypes policy,
             ut = solvers[0].compute_first_control(xt); 
         }
 
+        
+
         //PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
         rollout_cost += ct_true_world(xt, ut, t);
@@ -300,6 +302,8 @@ double control_shared_autonomy(const PolicyTypes policy,
             goal_predictor.update_goal_distribution(q_values, v_values);
             std::vector<double> updated_goal_distribution = goal_predictor.get_goal_distribution();
             size_t argmax_goal = argmax(updated_goal_distribution);
+
+            PRINT("goal probabilities: " << updated_goal_distribution);
 
             //update goal probabilities
             for (size_t i=0; i < NUM_GOALS; i++)

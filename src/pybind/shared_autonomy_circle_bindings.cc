@@ -73,8 +73,8 @@ PYBIND11_PLUGIN(shared_autonomy_circle_bindings)
 
     m.def("control_shared_autonomy", [](PolicyTypes policy, 
                     CircleWorld &world,
-                    py::list goal_states_list,//simulators::directdrive::StateVector goal_states,
-                    //std::vector<Eigen::Vector2d> goal_states,
+                    //py::list goal_states_list,//simulators::directdrive::StateVector goal_states,
+                    std::vector<simulators::directdrive::StateVector> goal_states,
                     std::vector<double> goal_priors,
                     int true_goal_ind,
                     std::string state_fname = "",
@@ -88,9 +88,9 @@ PYBIND11_PLUGIN(shared_autonomy_circle_bindings)
 
                 //std::vector<double> goal_priors(goal_priors_array);
 
-                //const double cost_to_go
-                //    = control_shared_autonomy(policy, world, goal_states, goal_priors, true_goal_ind, state_fname, obs_fname);
-                //return std::make_tuple(cost_to_go, state_fname, obs_fname); 
+                const double cost_to_go
+                    = control_shared_autonomy(policy, world, goal_states, goal_priors, true_goal_ind, state_fname, obs_fname);
+                return std::make_tuple(cost_to_go, state_fname, obs_fname); 
             }, 
             "Function for running iLQR on shared autonomy circle world.");
     

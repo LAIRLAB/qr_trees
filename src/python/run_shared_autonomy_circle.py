@@ -44,34 +44,31 @@ if __name__ == "__main__":
 
     cost, states_true_1, obs_fname_1 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
             world, goal_states, goal_priors, 0, "true1", "true1")
-#    cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
-#            w2, w1, obs_prior, "true2", "true2")
-#
-#    cost, states_weighted_1, obs_fname_3 =\
-#            ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
-#                w1, w2, obs_prior, "weight3", "weight3")
-#    cost, states_weighted_2, obs_fname_4 =\
-#            ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
-#                w2, w1, obs_prior, "weight4", "weight4")
-#
-#    cost, states_hind_1, obs_fname_5 =\
-#            ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
-#                w1, w2, obs_prior, "hind3", "hind3")
-#    cost, states_hind_2, obs_fname_6 =\
-#            ilqr.control_shared_autonomy(ilqr.HINDSIGHT,
-#                w2, w1, obs_prior, "hind4", "hind4")
-#
-#    
-#    print("Drawing world 1")
-#    ax1 = vis.parse_draw_files([states_true_1, states_weighted_1, states_hind_1], obs_fname_1,
-#            show=False) 
-#    plt.title('World 1')
-#
-#    print("Drawing world 2")
-#    ax2 = vis.parse_draw_files([states_true_2, states_weighted_2, states_hind_2], 
-#            obs_fname_2, show=False) 
-#    plt.title('World 2')
-#    plt.show()
+    cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
+            world, goal_states, goal_priors, 1, "true2", "true2")
+    #cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
+
+    cost, states_weighted_1, obs_fname_3 = ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
+            world, goal_states, goal_priors, 0, "weight3", "weight3")
+    cost, states_weighted_2, obs_fname_4 = ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
+            world, goal_states, goal_priors, 1, "weight4", "weight4")
+
+    cost, states_hind_1, obs_fname_5 = ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
+            world, goal_states, goal_priors, 0, "hind3", "hind3")
+    cost, states_hind_2, obs_fname_6 = ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
+            world, goal_states, goal_priors, 1, "hind4", "hind4")
+
+    
+    print("Drawing world 1")
+    ax1 = vis.parse_draw_files([states_true_1, states_weighted_1, states_hind_1], obs_fname_1,
+            show=False) 
+    plt.title('World 1')
+
+    print("Drawing world 2")
+    ax2 = vis.parse_draw_files([states_true_2, states_weighted_2, states_hind_2], 
+            obs_fname_2, show=False) 
+    plt.title('World 2')
+    plt.show()
 
     embed()
 

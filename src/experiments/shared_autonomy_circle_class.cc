@@ -44,7 +44,7 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
     IS_GREATER(timesteps_, 1);
     IS_GREATER(dt, 0);
 
-    DEBUG("Running with policy \"" << to_string(policy)
+    DEBUG("Initializing with policy \"" << to_string(policy)
             << "\" with num obs in true= \"" 
             << world.obstacles().size() << "\"");
 
@@ -144,6 +144,8 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
 void SharedAutonomyCircle::run_control(int num_timesteps)
 {
     const int loop_limit = std::min(get_num_timesteps_remaining()-1, num_timesteps) + current_timestep_;
+
+    DEBUG("Running for " << loop_limit << " timsteps");
     for (; current_timestep_ < loop_limit; ++current_timestep_)
     {
         const int t_offset = current_timestep_ >  0 ? 1 : 0;
@@ -217,7 +219,7 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
             std::vector<double> updated_goal_distribution = goal_predictor_.get_goal_distribution();
             size_t argmax_goal = argmax(updated_goal_distribution);
 
-            PRINT("iter " << current_timestep_ << " goal probabilities: " << updated_goal_distribution);
+            DEBUG("iter " << current_timestep_ << " goal probabilities: " << updated_goal_distribution);
 
             //update goal probabilities
             for (size_t i=0; i < NUM_GOALS; i++)

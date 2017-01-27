@@ -27,3 +27,7 @@ pybind11_add_module(shared_autonomy_circle_bindings shared_autonomy_circle_bindi
 set_target_properties(shared_autonomy_circle_bindings PROPERTIES SUFFIX ".so")
 target_link_libraries(shared_autonomy_circle_bindings PRIVATE shared_autonomy_circle)
 
+pybind11_add_module(shared_autonomy_circle_class_bindings shared_autonomy_circle_class_bindings.cc)
+set_target_properties(shared_autonomy_circle_class_bindings PROPERTIES SUFFIX ".so")
+target_link_libraries(shared_autonomy_circle_class_bindings PRIVATE shared_autonomy_circle_class)
+

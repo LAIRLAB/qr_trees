@@ -16,7 +16,7 @@ if full_path.count("src/python") > 0:
 
 from IPython import embed
 
-import lib.shared_autonomy_circle_bindings as ilqr
+import lib.shared_autonomy_circle_class_bindings as ilqr
 import visualize_circle_world as vis
 
 import numpy as np
@@ -41,35 +41,39 @@ if __name__ == "__main__":
 
     goal_priors = [0.5, 0.5]
 
-
-    cost, states_true_1, obs_fname_1 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
-            world, goal_states, goal_priors, 0, "true1", "true1")
-    cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
-            world, goal_states, goal_priors, 1, "true2", "true2")
-    #cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
-
-    cost, states_weighted_1, obs_fname_3 = ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
-            world, goal_states, goal_priors, 0, "weight3", "weight3")
-    cost, states_weighted_2, obs_fname_4 = ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
-            world, goal_states, goal_priors, 1, "weight4", "weight4")
-
-    cost, states_hind_1, obs_fname_5 = ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
-            world, goal_states, goal_priors, 0, "hind3", "hind3")
-    cost, states_hind_2, obs_fname_6 = ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
-            world, goal_states, goal_priors, 1, "hind4", "hind4")
-
     
-    print("Drawing world 1")
-    ax1 = vis.parse_draw_files([states_true_1, states_weighted_1, states_hind_1], obs_fname_1,
-            show=False) 
-    plt.title('World 1')
+    ilqr_true = ilqr.SharedAutonomyCircle(ilqr.TRUE_ILQR, world, goal_states, goal_priors, 0, 50)
+    print 'num timesteps: ' + str(ilqr_true.get_num_timesteps_remaining())
+    ilqr_true.run_control(ilqr_true.get_num_timesteps_remaining())
 
-    print("Drawing world 2")
-    ax2 = vis.parse_draw_files([states_true_2, states_weighted_2, states_hind_2], 
-            obs_fname_2, show=False) 
-    plt.title('World 2')
-    plt.show()
-
-    embed()
+#    cost, states_true_1, obs_fname_1 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
+#            world, goal_states, goal_priors, 0, "true1", "true1")
+#    cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
+#            world, goal_states, goal_priors, 1, "true2", "true2")
+#    #cost, states_true_2, obs_fname_2 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
+#
+#    cost, states_weighted_1, obs_fname_3 = ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
+#            world, goal_states, goal_priors, 0, "weight3", "weight3")
+#    cost, states_weighted_2, obs_fname_4 = ilqr.control_shared_autonomy(ilqr.PROB_WEIGHTED_CONTROL, 
+#            world, goal_states, goal_priors, 1, "weight4", "weight4")
+#
+#    cost, states_hind_1, obs_fname_5 = ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
+#            world, goal_states, goal_priors, 0, "hind3", "hind3")
+#    cost, states_hind_2, obs_fname_6 = ilqr.control_shared_autonomy(ilqr.HINDSIGHT, 
+#            world, goal_states, goal_priors, 1, "hind4", "hind4")
+#
+#    
+#    print("Drawing world 1")
+#    ax1 = vis.parse_draw_files([states_true_1, states_weighted_1, states_hind_1], obs_fname_1,
+#            show=False) 
+#    plt.title('World 1')
+#
+#    print("Drawing world 2")
+#    ax2 = vis.parse_draw_files([states_true_2, states_weighted_2, states_hind_2], 
+#            obs_fname_2, show=False) 
+#    plt.title('World 2')
+#    plt.show()
+#
+    #embed()
 
 

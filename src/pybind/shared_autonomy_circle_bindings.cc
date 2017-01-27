@@ -2,8 +2,8 @@
 // Simple example of using pybind based on http://pybind11.readthedocs.io/en/latest/basics.html 
 // but extended to use the Numpy-Eigen binding.
 //
-// Arun Venkatraman (arunvenk@cs.cmu.edu)
-// December 2016
+// Shervin Javdani (sjavdani@cs.cmu.edu)
+// January 2017
 //
 
 #include <pybind11/pybind11.h>
@@ -47,29 +47,6 @@ PYBIND11_PLUGIN(shared_autonomy_circle_bindings)
     .export_values() 
     .def("__str__", &to_string);
 
-
-//    py::class_<simulators::directdrive::StateVector>(m, "StateVector")
-//        .def(py::init<const double, const double>())
-//        .def(py::init<const Eigen::Vector2d&>())
-//        .def("__repr__", [](const simulators::directdrive::StateVector &s) 
-//                {
-//                    std::ostringstream oss;
-//                    oss << "StateVector(" << s(0) << " " << s(1) << ")";
-//                    return oss.str();
-//                });
-//        ;
-//
-//
-//    py::class_< std::vector<simulators::directdrive::StateVector> >(m, "GoalList")
-//        .def(py::init<>())
-//        .def("add_goal", [](const simulators::directdrive::StateVector &s) {
-//        .def("__repr__", [](const simulators::directdrive::StateVector &s) 
-//                {
-//                    std::ostringstream oss;
-//                    oss << "StateVector(" << s(0) << " " << s(1) << ")";
-//                    return oss.str();
-//                });
-//        ;
 
     m.def("control_shared_autonomy", [](PolicyTypes policy, 
                     CircleWorld &world,

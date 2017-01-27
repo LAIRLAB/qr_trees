@@ -236,7 +236,7 @@ double control_shared_autonomy(const PolicyTypes policy,
     //TODO: How to run this for full T?
     for (int t = 0; t < T-1; ++t)
     {
-        const bool t_offset = t >  0 ? 1 : 0;
+        const int t_offset = t >  0 ? 1 : 0;
         const int plan_horizon = T-t;
         //const int plan_horizon = std::min(T-t, MPC_HORIZON);
         

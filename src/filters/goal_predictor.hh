@@ -25,7 +25,7 @@ public:
     double get_prob_at_ind (const std::size_t i) const;
     size_t get_num_goals() const {return log_goal_distribution_.size();}
 
-    void update_goal_distribution(const std::vector<double>& q_values, const std::vector<double>& v_values);
+    void update_goal_distribution(const std::vector<double>& q_values, const std::vector<double>& v_values, const double scale_factor=1.0);
 
 
 private:

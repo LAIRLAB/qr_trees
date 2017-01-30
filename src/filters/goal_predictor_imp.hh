@@ -63,7 +63,7 @@ double GoalPredictor::get_prob_at_ind(const std::size_t i) const
     return std::exp(log_goal_distribution_[i]);
 }
 
-void GoalPredictor::update_goal_distribution(const std::vector<double>& q_values, const std::vector<double>& v_values)
+void GoalPredictor::update_goal_distribution(const std::vector<double>& q_values, const std::vector<double>& v_values, const double scale_factor)
 {
     IS_EQUAL(q_values.size(), v_values.size());
     IS_EQUAL(log_goal_distribution_.size(), v_values.size());
@@ -72,7 +72,7 @@ void GoalPredictor::update_goal_distribution(const std::vector<double>& q_values
     {
         double q_val = q_values[i];
         double v_val = v_values[i];
-        log_goal_distribution_[i] -= q_val - v_val;
+        log_goal_distribution_[i] -= (q_val - v_val) * scale_factor;
     }
     
     normalize_log_distribution();

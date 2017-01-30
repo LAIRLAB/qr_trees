@@ -11,6 +11,8 @@
 #include <templated/iLQR_hindsight_value.hh>
 #include <filters/goal_predictor.hh>
 
+#include <memory>
+
 #include <array>
 #include <string>
 
@@ -112,6 +114,7 @@ private:
     double rollout_cost_ = 0.;
 
     std::vector<ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>> solvers_;
+    std::unique_ptr<ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>> user_solver_;
 };
 
 

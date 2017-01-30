@@ -67,8 +67,6 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
     }
 
     // set the true cost function based on user goal ind
-//    auto ct_true_world = goals_[true_goal_ind_].ct_;
-//    auto cT_true_world = goals_[true_goal_ind_].cT_;
 
 
     //construct the branches
@@ -129,9 +127,14 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
         break;
     };
 
-    // Setup a solver representing the user
-    //ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> user_branch_(dynamics_, goals[true_goal_ind_].cT_, goals[true_goal_ind_].ct_, 1.0);
-    //ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM> user_solver({user_branch});
+    //construct a solver representing the user
+//    if (policy_type_ == PolicyTypes::PROB_WEIGHTED_CONTROL || policy_type_ == PolicyTypes::TRUE_ILQR)
+//    {
+//        user_solver_.reset();
+//    } else {
+    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> user_branch(dynamics_, goals_[true_goal_ind_].cT_, goals_[true_goal_ind_].ct_, 1.0);
+    user_solver_.reset(new ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>({user_branch}));
+    user_solver_->solve(timesteps_, states_.back(), u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
     
     // Solve the first time from scratch
     for (auto &solver: solvers_)
@@ -155,6 +158,14 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
         ControlVector ut;
         ControlVector user_ut;
         StateVector xt = get_last_state();
+
+        // solve user action
+        user_solver_->solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+        user_ut = user_solver_->compute_first_control(xt);
+        const StateVector user_xt1 = dynamics_(xt, user_ut);
+        //update predictor
+
+        
 
         if (policy_type_ == PolicyTypes::PROB_WEIGHTED_CONTROL)
         {
@@ -201,12 +212,12 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
                 if (policy_type_ == PolicyTypes::PROB_WEIGHTED_CONTROL)
                 {
                     v_xt = solvers_[i].compute_value( 0, xt, 0);   
-                    v_xt1 = solvers_[i].compute_value( 0, xt1, 1);
+                    v_xt1 = solvers_[i].compute_value( 0, user_xt1, 1);
                 } else {
                     v_xt = solvers_[0].compute_value( i, xt, 0);   
-                    v_xt1 = solvers_[0].compute_value( i, xt1, 1);
+                    v_xt1 = solvers_[0].compute_value( i, user_xt1, 1);
                 }
-                double c_xt = goals_[i].ct_(xt, ut, current_timestep_);
+                double c_xt = goals_[i].ct_(xt, user_ut, current_timestep_);
                 double q_xt = c_xt + v_xt1;
 
                 q_values[i] = q_xt;
@@ -215,7 +226,7 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
             //PRINT(q_values);
             //PRINT(v_values);
 
-            goal_predictor_.update_goal_distribution(q_values, v_values);
+            goal_predictor_.update_goal_distribution(q_values, v_values, 0.001);
             std::vector<double> updated_goal_distribution = goal_predictor_.get_goal_distribution();
             size_t argmax_goal = argmax(updated_goal_distribution);
 

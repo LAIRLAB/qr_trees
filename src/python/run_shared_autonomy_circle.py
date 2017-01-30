@@ -36,8 +36,8 @@ if __name__ == "__main__":
     world.add_obstacle(obstacle_1);
 
     goal_states = []
-    goal_states.append(np.array([-3., 25.]))
-    goal_states.append(np.array([3., 25.]))
+    goal_states.append(np.array([-15., 25.]))
+    goal_states.append(np.array([15., 25.]))
 
     goal_priors = [0.5, 0.5]
 

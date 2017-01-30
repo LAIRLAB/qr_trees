@@ -42,9 +42,43 @@ if __name__ == "__main__":
     goal_priors = [0.5, 0.5]
 
     
-    ilqr_true = ilqr.SharedAutonomyCircle(ilqr.TRUE_ILQR, world, goal_states, goal_priors, 0, 50)
-    print 'num timesteps: ' + str(ilqr_true.get_num_timesteps_remaining())
+    true_goal_ind = 0
+    num_timesteps = 20
+    ilqr_true = ilqr.SharedAutonomyCircle(ilqr.TRUE_ILQR, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
     ilqr_true.run_control(ilqr_true.get_num_timesteps_remaining())
+
+    ilqr_hindsight = ilqr.SharedAutonomyCircle(ilqr.HINDSIGHT, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
+    ilqr_hindsight.run_control(ilqr_hindsight.get_num_timesteps_remaining())
+
+    ilqr_weighted = ilqr.SharedAutonomyCircle(ilqr.PROB_WEIGHTED_CONTROL, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
+    ilqr_weighted.run_control(ilqr_weighted.get_num_timesteps_remaining())
+
+    controllers = [ilqr_true, ilqr_hindsight, ilqr_weighted]
+    labels = ['true', 'hindsight', 'weighted']
+
+    COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2)]#, (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
+
+    # draw
+    plt.figure(figsize=(10, 8))
+    ax = plt.gca()
+
+    start_pos = ilqr_true.get_state_at_ind(0)
+    end_pos = ilqr_true.get_last_state()
+
+    obs_poses = [o.position for o in world.obstacles]
+    obs_radii = [np.array(o.radius) for o in world.obstacles]
+
+    vis.draw_env_multiend(ax, start_pos, goal_states, true_goal_ind, vis.robot_radius, obs_poses, obs_radii);
+    labels_circ = []
+    for controller, label, color in zip(controllers, labels, COLORS):
+        states = np.array(controller.get_states())
+        label_circ = vis.draw_traj(ax, states, vis.robot_radius, color=color, label=label, skip=1)
+        labels_circ.append(label_circ)
+    plt.axis('square')
+    plt.axis([float(d) for d in world_dims])
+    ax.legend(handles=labels_circ)
+    plt.tight_layout()
+    plt.show()
 
 #    cost, states_true_1, obs_fname_1 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 
 #            world, goal_states, goal_priors, 0, "true1", "true1")

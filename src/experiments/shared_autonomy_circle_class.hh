@@ -89,6 +89,9 @@ public:
     inline int get_num_timesteps_remaining(){return timesteps_ - current_timestep_;}
     inline bool is_done(){return current_timestep_ >= timesteps_ ;}
     inline double get_rollout_cost(){return rollout_cost_;}
+    inline int get_num_states_computed(){return states_.size();}
+
+    std::vector<StateVector> const get_states(){return states_;}
 
 
 private:

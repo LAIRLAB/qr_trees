@@ -62,6 +62,8 @@ PYBIND11_PLUGIN(shared_autonomy_circle_class_bindings)
         .def("is_done", &SharedAutonomyCircle::is_done)
         .def("get_rollout_cost", &SharedAutonomyCircle::get_rollout_cost)
         .def("run_control", &SharedAutonomyCircle::run_control)
+        .def("get_num_states_computed", &SharedAutonomyCircle::get_num_states_computed)
+        .def("get_states", &SharedAutonomyCircle::get_states)
     ;;
 
 

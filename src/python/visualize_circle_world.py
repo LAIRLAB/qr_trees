@@ -26,9 +26,18 @@ def draw_env(ax, start_pos, end_pos, robot_radius, obs_poses, obs_radii):
     draw_circle(ax, start_pos, robot_radius, color=(0,1,0))
     draw_circle(ax, end_pos, robot_radius, color=(1,0,0))
 
-    for i in xrange(obs_radii.size):
-        obs_radius = obs_radii[i]
-        obs_pos = obs_poses[i]
+    for obs_radius, obs_pos in zip(obs_radii, obs_poses):
+        ax.add_artist(plt.Circle(obs_pos, obs_radius, color=(0.1,0.1,0.1)))
+
+def draw_env_multiend(ax, start_pos, end_poses, true_goal_ind, robot_radius, obs_poses, obs_radii):
+    draw_circle(ax, start_pos, robot_radius, color=(0,1,0))
+    for ind,end_pos in enumerate(end_poses):
+        if ind == true_goal_ind:
+            draw_circle(ax, end_pos, robot_radius, color=(1,0,0))
+        else:
+            draw_circle(ax, end_pos, robot_radius, color=(0.9,0,0, 0.5))
+
+    for obs_radius, obs_pos in zip(obs_radii, obs_poses):
         ax.add_artist(plt.Circle(obs_pos, obs_radius, color=(0.1,0.1,0.1)))
 
 def draw_traj(ax, states, robot_radius, color, label, skip = 3):

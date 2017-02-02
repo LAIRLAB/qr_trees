@@ -163,7 +163,9 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
         user_solver_->solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
         user_ut = user_solver_->compute_first_control(xt);
         const StateVector user_xt1 = dynamics_(xt, user_ut);
-        //update predictor
+
+        //note: still cheating a bit with user prediction
+        // should compute user action, compute values for all branches, change probability, then recompute the control we would use
 
         
 
@@ -272,6 +274,60 @@ ControlVector SharedAutonomyCircle::get_control_at_ind(int ind)
     IS_GREATER(controls_.size(), ind);
     return controls_[ind];
 }
+
+
+std::vector<double> SharedAutonomyCircle::get_values_at_positions(const std::vector<Eigen::Vector2d>& positions, int num_timesteps_future)
+{
+    if (policy_type_ == PolicyTypes::TRUE_ILQR)
+    {
+        return get_values_at_positions_onebranch(positions, 0, num_timesteps_future);
+    } else if (policy_type_ == PolicyTypes::ARGMAX_ILQR) {
+        std::vector<double> goal_distribution = goal_predictor_.get_goal_distribution();
+        int argmax_branch = std::distance(goal_distribution.begin(), std::max_element(goal_distribution.begin(), goal_distribution.end()));
+        return get_values_at_positions_onebranch(positions, argmax_branch, num_timesteps_future);
+    } else {
+        //take expected value for hindsight and prob_weighted
+        std::vector<double> goal_distribution = goal_predictor_.get_goal_distribution();
+        std::vector<double> exp_values(positions.size(), 0.0);
+
+        for (int branch_num=0; branch_num < NUM_GOALS; branch_num++)
+        {
+            std::vector<double> vals_this_branch = get_values_at_positions_onebranch(positions, branch_num, num_timesteps_future);
+
+            //multiply by prob of goal
+            std::transform(vals_this_branch.begin(), vals_this_branch.end(), vals_this_branch.begin(),
+               std::bind1st(std::multiplies<double>(),goal_distribution[branch_num]));
+
+            //add to output
+            std::transform(exp_values.begin(), exp_values.end(), vals_this_branch.begin(), exp_values.begin(), std::plus<double>());
+        }
+
+        return exp_values;
+    }
+
+
+}
+
+
+std::vector<double> SharedAutonomyCircle::get_values_at_positions_onebranch(const std::vector<Eigen::Vector2d>& positions, int branch_num, int num_timesteps_future)
+{
+    std::vector<double> values(positions.size());
+    for (size_t i=0; i < positions.size(); i++)
+    {
+        StateVector s;
+        s[State::POS_X] = positions[i][0];
+        s[State::POS_Y] = positions[i][1];
+        if (policy_type_ == PolicyTypes::PROB_WEIGHTED_CONTROL)
+        {
+            values[i] = solvers_[branch_num].compute_value( 0, s, num_timesteps_future);   
+        } else {
+            values[i] = solvers_[0].compute_value( branch_num, s, num_timesteps_future);   
+        }
+    }
+
+    return values;
+}
+
 
 
 

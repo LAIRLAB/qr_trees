@@ -86,6 +86,9 @@ public:
     StateVector get_state_at_ind(int ind);
     ControlVector get_control_at_ind(int ind);
 
+    std::vector<double> get_values_at_positions(const std::vector<Eigen::Vector2d>& positions, int num_timesteps_future=0);
+    std::vector<double> get_values_at_positions_onebranch(const std::vector<Eigen::Vector2d>& positions, int branch_num, int num_timesteps_future=0);
+
     inline StateVector get_last_state(){return states_.back();}
     inline ControlVector get_last_control(){return controls_.back();}
     inline int get_num_timesteps_remaining(){return timesteps_ - current_timestep_;}
@@ -94,7 +97,7 @@ public:
     inline int get_num_states_computed(){return states_.size();}
 
     std::vector<StateVector> const get_states(){return states_;}
-
+    std::vector<ControlVector> const get_controls(){return controls_;}
 
 private:
     PolicyTypes policy_type_;

@@ -64,6 +64,8 @@ PYBIND11_PLUGIN(shared_autonomy_circle_class_bindings)
         .def("run_control", &SharedAutonomyCircle::run_control)
         .def("get_num_states_computed", &SharedAutonomyCircle::get_num_states_computed)
         .def("get_states", &SharedAutonomyCircle::get_states)
+        .def("get_values_at_positions", &SharedAutonomyCircle::get_values_at_positions)
+        .def("get_values_at_positions_onebranch", &SharedAutonomyCircle::get_values_at_positions_onebranch)
     ;;
 
 

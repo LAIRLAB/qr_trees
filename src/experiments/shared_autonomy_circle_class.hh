@@ -89,10 +89,12 @@ public:
     std::vector<double> get_values_at_positions(const std::vector<Eigen::Vector2d>& positions, int num_timesteps_future=0);
     std::vector<double> get_values_at_positions_onebranch(const std::vector<Eigen::Vector2d>& positions, int branch_num, int num_timesteps_future=0);
 
+    inline const PolicyTypes get_policy_type(){return policy_type_;}
+
     inline StateVector get_last_state(){return states_.back();}
     inline ControlVector get_last_control(){return controls_.back();}
     inline int get_num_timesteps_remaining(){return timesteps_ - current_timestep_;}
-    inline bool is_done(){return current_timestep_ >= timesteps_ ;}
+    inline bool is_done(){return current_timestep_ >= timesteps_ -1;}
     inline double get_rollout_cost(){return rollout_cost_;}
     inline int get_num_states_computed(){return states_.size();}
 

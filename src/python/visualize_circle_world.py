@@ -21,6 +21,19 @@ def draw_circle(ax, pos_ang, radius, color, label=None):
         ax.add_artist(arr);
     return circ
 
+def draw_value_at_positions(ax, positions, values, num_xy_points=None):
+  #assume square if the number of x and y points not passed in
+  if num_xy_points is None:
+    num_x = int(np.sqrt(len(positions)))
+    num_xy_points = np.array([num_x, num_x])
+
+  positions_arr = np.array(positions)
+  x = positions_arr[:,0].reshape(num_xy_points)
+  y = positions_arr[:,1].reshape(num_xy_points)
+  z = np.array(values).reshape(num_xy_points)
+  ax.contourf(x, y, z, 30, alpha=0.4)
+
+  
 
 def draw_env(ax, start_pos, end_pos, robot_radius, obs_poses, obs_radii):
     draw_circle(ax, start_pos, robot_radius, color=(0,1,0))

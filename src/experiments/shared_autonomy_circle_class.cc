@@ -148,7 +148,7 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
 {
     const int loop_limit = std::min(get_num_timesteps_remaining()-1, num_timesteps) + current_timestep_;
 
-    DEBUG("Running for " << loop_limit << " timsteps");
+    DEBUG("Running up to " << loop_limit << " time. Currently at timestep " << current_timestep_);
     for (; current_timestep_ < loop_limit; ++current_timestep_)
     {
         const int t_offset = current_timestep_ >  0 ? 1 : 0;

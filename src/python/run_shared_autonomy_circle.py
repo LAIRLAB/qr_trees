@@ -21,14 +21,24 @@ import visualize_circle_world as vis
 
 import numpy as np
 import matplotlib.pyplot as plt
+import cPickle as pickle
+
+
 
 
 if __name__ == "__main__":
     world_dims = [-30, 30, -30, 30]
 
+    #set positions for getting value
+    dist_between = 5.
+    positions_get_value = []
+    for x in np.arange( float(world_dims[0])+dist_between, float(world_dims[1]), dist_between):
+      for y in np.arange( float(world_dims[2])+dist_between, float(world_dims[3]), dist_between):
+        positions_get_value.append(np.array([x, y]))
+
     world = ilqr.CircleWorld(world_dims)
 
-    obs_pos_1 = [0, 0.0]
+    obs_pos_1 = [0., 0.]
     obs_radius = 10.0
     obstacle_1 = ilqr.Circle(obs_radius, obs_pos_1);
 
@@ -44,23 +54,53 @@ if __name__ == "__main__":
     
     true_goal_ind = 0
     num_timesteps = 20
-    ilqr_true = ilqr.SharedAutonomyCircle(ilqr.TRUE_ILQR, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
-    ilqr_true.run_control(ilqr_true.get_num_timesteps_remaining())
+    num_timsteps_get_value = 5
+
+    all_vals_plotting = {}
+    policy_types = [ilqr.TRUE_ILQR, ilqr.HINDSIGHT]#, ilqr.PROB_WEIGHTED_CONTROL]
+    labels = [str(p) for p in policy_types]
+    for policy_type,label in zip(policy_types, labels):
+      controller = ilqr.SharedAutonomyCircle(policy_type, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
+      all_value_grids = []
+      while not controller.is_done():
+        controller.run_control(1)
+        values = controller.get_values_at_positions(positions_get_value, 0)
+        all_value_grids.append(values)
+
+      states = controller.get_states()
+
+      #make a dict with relevant values for this controller
+      vals_this_cont = {}
+      vals_this_cont['states'] = states
+      vals_this_cont['value_grids'] = all_value_grids
+
+      #save to dict of all values
+      all_vals_plotting[label] = vals_this_cont
+
+
+      
+    embed()
+
 
     ilqr_hindsight = ilqr.SharedAutonomyCircle(ilqr.HINDSIGHT, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
+    ilqr_hindsight.run_control(num_timsteps_get_value)
+    values_ilqr_hindsight = ilqr_hindsight.get_values_at_positions(positions_get_value, 0)
     ilqr_hindsight.run_control(ilqr_hindsight.get_num_timesteps_remaining())
 
-    ilqr_weighted = ilqr.SharedAutonomyCircle(ilqr.PROB_WEIGHTED_CONTROL, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
-    ilqr_weighted.run_control(ilqr_weighted.get_num_timesteps_remaining())
+#    ilqr_weighted = ilqr.SharedAutonomyCircle(ilqr.PROB_WEIGHTED_CONTROL, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
+#    ilqr_weighted.run_control(ilqr_weighted.get_num_timesteps_remaining())
 
     controllers = [ilqr_true, ilqr_hindsight, ilqr_weighted]
     labels = ['true', 'hindsight', 'weighted']
-
     COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2)]#, (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
+
+
 
     # draw
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
+
+    vis.draw_value_at_positions(ax, positions_get_value, values_ilqr_hindsight)
 
     start_pos = ilqr_true.get_state_at_ind(0)
     end_pos = ilqr_true.get_last_state()

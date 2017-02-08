@@ -7,7 +7,7 @@
 
 namespace user_goal
 {
-Matrix<STATE_DIM, STATE_DIM> Q = 1*Matrix<STATE_DIM,STATE_DIM>::Identity();
+Matrix<STATE_DIM, STATE_DIM> Q = 0.01*Matrix<STATE_DIM,STATE_DIM>::Identity();
 Matrix<STATE_DIM, STATE_DIM> QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity(); // Quadratic state cost for final timestep.
 Matrix<CONTROL_DIM, CONTROL_DIM> R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 StateVector xT; // Goal state for final timestep.
@@ -53,6 +53,10 @@ double ct(const StateVector &x, const ControlVector &u, const int t, const Circl
     //const ControlVector du = u - u_nominal;
     //cost += 0.5*(du.transpose()*R*du)[0];
     cost += 0.5*(u.transpose()*R*u)[0];
+
+    //add cost for not being at goal
+    const StateVector dx = x - goal_state;
+    cost += 0.5*(dx.transpose()*Q*dx)[0];
 
     cost += obstacle_cost(world, robot_radius_, x);
 

@@ -48,6 +48,7 @@ PYBIND11_PLUGIN(shared_autonomy_circle_class_bindings)
     .value("TRUE_ILQR", PolicyTypes::TRUE_ILQR)
     .value("ARGMAX_ILQR", PolicyTypes::ARGMAX_ILQR)
     .value("PROB_WEIGHTED_CONTROL", PolicyTypes::PROB_WEIGHTED_CONTROL)
+    .value("AVG_COST", PolicyTypes::AVG_COST)
     .export_values() 
     .def("__str__", &to_string);
 

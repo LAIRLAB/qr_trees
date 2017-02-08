@@ -7,7 +7,7 @@
 
 namespace user_goal
 {
-Matrix<STATE_DIM, STATE_DIM> Q = 0.01*Matrix<STATE_DIM,STATE_DIM>::Identity();
+Matrix<STATE_DIM, STATE_DIM> Q = 0.0001*Matrix<STATE_DIM,STATE_DIM>::Identity();
 Matrix<STATE_DIM, STATE_DIM> QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity(); // Quadratic state cost for final timestep.
 Matrix<CONTROL_DIM, CONTROL_DIM> R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 StateVector xT; // Goal state for final timestep.

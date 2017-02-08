@@ -70,19 +70,18 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
 
 
     //construct the branches
-    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> solver_branches;
     switch(policy_type_)
     {
     case PolicyTypes::TRUE_ILQR:
     {
-        solver_branches.emplace_back(dynamics_, goals_[true_goal_ind_].cT_, goals_[true_goal_ind_].ct_, 1.0);
+        solver_branches_.emplace_back(dynamics_, goals_[true_goal_ind_].cT_, goals_[true_goal_ind_].ct_, 1.0);
         break;
     }
     case PolicyTypes::HINDSIGHT:
     {
         for (auto &goal: goals_)
         {
-            solver_branches.emplace_back(dynamics_, goal.cT_, goal.ct_, goal.prob_);
+            solver_branches_.emplace_back(dynamics_, goal.cT_, goal.ct_, goal.prob_);
         }
         break;
     }
@@ -90,9 +89,14 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
     {
         for (auto &goal: goals_)
         {
-            solver_branches.emplace_back(dynamics_, goal.cT_, goal.ct_, 1.0);
+            solver_branches_.emplace_back(dynamics_, goal.cT_, goal.ct_, 1.0);
         }
         // do nothing as this requires two separate solvers
+        break;
+    }
+    case PolicyTypes::AVG_COST:
+    {
+        solver_branches_.emplace_back(dynamics_, avg_final_cost(goals_), avg_cost(goals_), 1.0);
         break;
     }
     case PolicyTypes::ARGMAX_ILQR:
@@ -102,9 +106,9 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
         {
             auto &goal = goals_[i];
             if (i == argmax_branch)
-                solver_branches.emplace_back(dynamics_, goal.cT_, goal.ct_, 1.);
+                solver_branches_.emplace_back(dynamics_, goal.cT_, goal.ct_, 1.);
             else
-                solver_branches.emplace_back(dynamics_, goal.cT_, goal.ct_, 0.);
+                solver_branches_.emplace_back(dynamics_, goal.cT_, goal.ct_, 0.);
         }
         break;
     }
@@ -115,40 +119,45 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
     {
     case PolicyTypes::PROB_WEIGHTED_CONTROL:
         //for prob weighted, one solver per branch
-        for (size_t i=0; i < solver_branches.size(); ++i)
+        for (size_t i=0; i < solver_branches_.size(); ++i)
         {
-            std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> > onebranch_vec = {solver_branches[i]};
+            std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> > onebranch_vec = {solver_branches_[i]};
             solvers_.emplace_back( onebranch_vec);
         }
         break;
     default:
         //otherwise, one solver for all branches
-        solvers_.emplace_back(solver_branches);
+        solvers_.emplace_back(solver_branches_);
         break;
     };
 
-    //construct a solver representing the user
-//    if (policy_type_ == PolicyTypes::PROB_WEIGHTED_CONTROL || policy_type_ == PolicyTypes::TRUE_ILQR)
-//    {
-//        user_solver_.reset();
-//    } else {
-    ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> user_branch(dynamics_, goals_[true_goal_ind_].cT_, goals_[true_goal_ind_].ct_, 1.0);
-    user_solver_.reset(new ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>({user_branch}));
-    user_solver_->solve(timesteps_, states_.back(), u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
-    
-    // Solve the first time from scratch
+    //solve initial problem
     for (auto &solver: solvers_)
     {
         solver.solve(timesteps_, states_.back(), u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
     }
 
+    //construct the prediction solvers, one per goal
+    for (auto &goal: goals_)
+    {
+        prediction_solver_branches_.emplace_back(dynamics_, goal.cT_, goal.ct_, 1.0);
+        std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM> > onebranch_vec = {prediction_solver_branches_.back()};
+        prediction_solvers_.emplace_back( onebranch_vec);
+        prediction_solvers_.back().solve(timesteps_, states_.back(), u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+    }
+
+    //construct a solver representing the user
+    user_solver_branch_.reset(new ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>(dynamics_, goals_[true_goal_ind_].cT_, goals_[true_goal_ind_].ct_, 1.0));
+    user_solver_.reset(new ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>({*user_solver_branch_}));
+    user_solver_->solve(timesteps_, states_.back(), u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha);
+    
 }
 
 void SharedAutonomyCircle::run_control(int num_timesteps)
 {
     const int loop_limit = std::min(get_num_timesteps_remaining()-1, num_timesteps) + current_timestep_;
 
-    DEBUG("Running up to " << loop_limit << " time. Currently at timestep " << current_timestep_);
+    DEBUG("Running up to timestep " << loop_limit << ". Currently at timestep " << current_timestep_);
     for (; current_timestep_ < loop_limit; ++current_timestep_)
     {
         const int t_offset = current_timestep_ >  0 ? 1 : 0;
@@ -164,10 +173,47 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
         user_ut = user_solver_->compute_first_control(xt);
         const StateVector user_xt1 = dynamics_(xt, user_ut);
 
-        //note: still cheating a bit with user prediction
-        // should compute user action, compute values for all branches, change probability, then recompute the control we would use
 
-        
+        //update predictor probabilities
+        std::vector<double> q_values(NUM_GOALS);
+        std::vector<double> v_values(NUM_GOALS);
+        //for (auto& solver: prediction_solvers_)
+        for (size_t i=0; i < NUM_GOALS; i++)
+        {
+            prediction_solvers_[i].solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
+            double v_xt = prediction_solvers_[i].compute_value( 0, xt, 0);   
+            double v_xt1 = prediction_solvers_[i].compute_value( 0, user_xt1, 1);
+            double c_xt = goals_[i].ct_(xt, user_ut, current_timestep_);
+            double q_xt = c_xt + v_xt1;
+
+            q_values[i] = q_xt;
+            v_values[i] = v_xt;
+        }
+
+        //PRINT(q_values);
+        //PRINT(v_values);
+
+        goal_predictor_.update_goal_distribution(q_values, v_values, 0.01);
+        std::vector<double> updated_goal_distribution = goal_predictor_.get_goal_distribution();
+        size_t argmax_goal = argmax(updated_goal_distribution);
+
+        DEBUG("iter " << current_timestep_ << " goal probabilities: " << updated_goal_distribution);
+
+        //update goal probabilities
+        for (size_t i=0; i < NUM_GOALS; i++)
+        { 
+            goals_[i].prob_ = updated_goal_distribution[i];
+            if (policy_type_ == PolicyTypes::HINDSIGHT)
+            {
+                solvers_[0].set_branch_probability(i, updated_goal_distribution[i]);
+            } else if (policy_type_ == PolicyTypes::ARGMAX_ILQR) {
+                if (i == argmax_goal)
+                    solvers_[0].set_branch_probability(i, 1.0);
+                else
+                    solvers_[0].set_branch_probability(i, 0.0);
+            }
+        }
+                
 
         if (policy_type_ == PolicyTypes::PROB_WEIGHTED_CONTROL)
         {
@@ -185,7 +231,6 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
             ut = solvers_[0].compute_first_control(xt); 
         }
 
-        
 
         //PRINT("t=" << t << ": Compute Time: " << (clock() - ilqr_begin_time) / (double) CLOCKS_PER_SEC);
 
@@ -200,56 +245,6 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
         //user_solver.solve(plan_horizon, xt, u_nominal, mu, max_iters, verbose, convg_thresh, start_alpha, true, t_offset);
         //user_ut = user_solver.compute_first_control(xt); 
 
-        //update predictor probabilities
-        std::vector<double> q_values(NUM_GOALS);
-        std::vector<double> v_values(NUM_GOALS);
-        if (policy_type_ != PolicyTypes::TRUE_ILQR)
-        {
-            //if not true ILQR, update the distribution
-            std::vector<double> q_values(NUM_GOALS);
-            std::vector<double> v_values(NUM_GOALS);
-            for (size_t i=0; i < NUM_GOALS; i++)
-            {
-                double v_xt, v_xt1;
-                if (policy_type_ == PolicyTypes::PROB_WEIGHTED_CONTROL)
-                {
-                    v_xt = solvers_[i].compute_value( 0, xt, 0);   
-                    v_xt1 = solvers_[i].compute_value( 0, user_xt1, 1);
-                } else {
-                    v_xt = solvers_[0].compute_value( i, xt, 0);   
-                    v_xt1 = solvers_[0].compute_value( i, user_xt1, 1);
-                }
-                double c_xt = goals_[i].ct_(xt, user_ut, current_timestep_);
-                double q_xt = c_xt + v_xt1;
-
-                q_values[i] = q_xt;
-                v_values[i] = v_xt;
-            }
-            //PRINT(q_values);
-            //PRINT(v_values);
-
-            goal_predictor_.update_goal_distribution(q_values, v_values, 0.001);
-            std::vector<double> updated_goal_distribution = goal_predictor_.get_goal_distribution();
-            size_t argmax_goal = argmax(updated_goal_distribution);
-
-            DEBUG("iter " << current_timestep_ << " goal probabilities: " << updated_goal_distribution);
-
-            //update goal probabilities
-            for (size_t i=0; i < NUM_GOALS; i++)
-            { 
-                goals_[i].prob_ = updated_goal_distribution[i];
-                if (policy_type_ == PolicyTypes::HINDSIGHT)
-                {
-                    solvers_[0].set_branch_probability(i, updated_goal_distribution[i]);
-                } else if (policy_type_ == PolicyTypes::ARGMAX_ILQR) {
-                    if (i == argmax_goal)
-                        solvers_[0].set_branch_probability(i, 1.0);
-                    else
-                        solvers_[0].set_branch_probability(i, 0.0);
-                }
-            }
-                
-        }
 
     }
 
@@ -278,7 +273,7 @@ ControlVector SharedAutonomyCircle::get_control_at_ind(int ind)
 
 std::vector<double> SharedAutonomyCircle::get_values_at_positions(const std::vector<Eigen::Vector2d>& positions, int num_timesteps_future)
 {
-    if (policy_type_ == PolicyTypes::TRUE_ILQR)
+    if (policy_type_ == PolicyTypes::TRUE_ILQR || policy_type_ == PolicyTypes::AVG_COST)
     {
         return get_values_at_positions_onebranch(positions, 0, num_timesteps_future);
     } else if (policy_type_ == PolicyTypes::ARGMAX_ILQR) {
@@ -328,7 +323,51 @@ std::vector<double> SharedAutonomyCircle::get_values_at_positions_onebranch(cons
     return values;
 }
 
+//return a cost function that is the weighted average of the specified function
+user_goal::CostFunction avg_cost(const std::vector<user_goal::CostFunction>& cost_functions, const filters::GoalPredictor& goal_predictor)
+{
+    return [&goal_predictor, &cost_functions](const StateVector& s, const ControlVector& u, const int t)
+    {
+        std::vector<double> weights = goal_predictor.get_goal_distribution();
+        double ret_val = 0;
+        for (size_t i=0; i < cost_functions.size(); i++)
+        {
+            ret_val += weights[i]*cost_functions[i](s, u, t);
+        }
+        return ret_val;
+    };
+}
 
+
+user_goal::CostFunction avg_cost(const std::vector<user_goal::User_Goal>& user_goals)
+{
+    return [&user_goals](const StateVector& s, const ControlVector& u, const int t)
+    {
+        double ret_val = 0;
+        for (auto& goal: user_goals)
+        {
+            ret_val += goal.prob_*goal.ct_(s, u, t);
+        }
+        return ret_val;
+    };
+
+
+}
+
+
+user_goal::FinalCostFunction avg_final_cost(const std::vector<user_goal::User_Goal>& user_goals)
+{
+    return [&user_goals](const StateVector& s)
+    {
+        double ret_val = 0;
+        for (auto& goal: user_goals)
+        {
+            ret_val += goal.prob_*goal.cT_(s);
+        }
+        return ret_val;
+    };
+
+}
 
 
 } //namespace experiments

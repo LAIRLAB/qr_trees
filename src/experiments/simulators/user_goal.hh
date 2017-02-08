@@ -29,6 +29,10 @@ template <int rows, int cols>
 using Matrix = Eigen::Matrix<double, rows, cols>;
 
 
+using CostFunction = std::function<double(const StateVector&, const ControlVector&, const int)>;
+using FinalCostFunction = std::function<double(const StateVector&)>;
+
+
 double obstacle_cost(const CircleWorld &world, const double robot_radius, const StateVector &xt);
 double ct(const StateVector &x, const ControlVector &u, const int t, const CircleWorld &world, const StateVector& goal_state);
 // Final timestep cost function

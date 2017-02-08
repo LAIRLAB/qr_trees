@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
       goal_states = []
       goal_states.append(np.array([-15., 25.]))
-      goal_states.append(np.array([15., 25.]))
+      goal_states.append(np.array([15, 25.]))
 
       goal_priors = [0.5, 0.5]
 
@@ -99,8 +99,7 @@ if __name__ == "__main__":
       obs_radii = [np.array(o.radius) for o in world.obstacles]
 
       true_goal_ind = 0
-      num_timesteps = 50
-      num_timsteps_get_value = 5
+      num_timesteps = 20
 
       all_vals_plotting[goal_states_key] = goal_states
       #all_vals_plotting[start_pos_key] = start_pos
@@ -109,7 +108,7 @@ if __name__ == "__main__":
       all_vals_plotting[true_goal_ind_key] = true_goal_ind
       all_vals_plotting[world_dims_key] = world_dims
 
-      policy_types = [ilqr.TRUE_ILQR, ilqr.HINDSIGHT, ilqr.PROB_WEIGHTED_CONTROL]
+      policy_types = [ilqr.AVG_COST, ilqr.TRUE_ILQR, ilqr.HINDSIGHT, ilqr.PROB_WEIGHTED_CONTROL]
       labels = [str(p) for p in policy_types]
       all_vals_plotting[labels_key] = labels
       for policy_type,label in zip(policy_types, labels):
@@ -136,7 +135,7 @@ if __name__ == "__main__":
 
 
 
-    COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2)]#, (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
+    COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2), (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
 
     # draw
     plt.figure(figsize=(10, 8))
@@ -155,13 +154,13 @@ if __name__ == "__main__":
 
 
     #TODO darken points for current time step
-    vis.draw_value_at_positions(ax, positions_get_value, all_vals_plotting[labels[1]][values_key][10])
+    vis.draw_value_at_positions(ax, positions_get_value, all_vals_plotting[labels[0]][values_key][1])
 
     vis.draw_env_multiend(ax, start_pos, goal_states, true_goal_ind, vis.robot_radius, obs_poses, obs_radii);
     labels_circ = []
     for label, color in zip(labels, COLORS):
         states = all_vals_plotting[label][states_key]
-        label_circ = vis.draw_traj(ax, states, vis.robot_radius, color=color, label=label, skip=3)
+        label_circ = vis.draw_traj(ax, states, vis.robot_radius, color=color, label=label, skip=1)
         labels_circ.append(label_circ)
     plt.axis('square')
     plt.axis([float(d) for d in world_dims])

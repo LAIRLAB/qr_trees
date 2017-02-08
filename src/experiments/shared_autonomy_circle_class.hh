@@ -52,6 +52,8 @@ enum class PolicyTypes
     ARGMAX_ILQR,
     // Compute iLQR chain for each probabilistic split and take a weighted average of the controls.
     PROB_WEIGHTED_CONTROL,
+    // Compute iLQR as single chain with the cost function as the weighted average of all cost functions
+    AVG_COST,
 };
 
 std::string to_string(const PolicyTypes policy_type)
@@ -66,6 +68,8 @@ std::string to_string(const PolicyTypes policy_type)
             return "argmax";
         case PolicyTypes::PROB_WEIGHTED_CONTROL:
             return "weighted";
+        case PolicyTypes::AVG_COST:
+            return "average_cost";
     };
     return "Unrecognized policy type. Error.";
 }
@@ -118,9 +122,20 @@ private:
     int current_timestep_ = 0;
     double rollout_cost_ = 0.;
 
+    //solvers for computing control
     std::vector<ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>> solvers_;
+    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> solver_branches_;
+    //solvers for computing prediction values. Always one per goal
+    std::vector<ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>> prediction_solvers_;
+    std::vector<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> prediction_solver_branches_;
+    //solver for user. Always one for true goal
     std::unique_ptr<ilqr::iLQRHindsightValueSolver<STATE_DIM,CONTROL_DIM>> user_solver_;
+    std::unique_ptr<ilqr::HindsightBranchValue<STATE_DIM,CONTROL_DIM>> user_solver_branch_;
 };
+
+
+user_goal::CostFunction avg_cost(const std::vector<user_goal::User_Goal>& user_goals);
+user_goal::FinalCostFunction avg_final_cost(const std::vector<user_goal::User_Goal>& user_goals);
 
 
 

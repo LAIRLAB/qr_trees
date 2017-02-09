@@ -54,12 +54,17 @@ def draw_env_multiend(ax, start_pos, end_poses, true_goal_ind, robot_radius, obs
         ax.add_artist(plt.Circle(obs_pos, obs_radius, color=(0.1,0.1,0.1)))
 
 def draw_traj(ax, states, robot_radius, color, label, skip = 3):
-    label_circ = draw_circle(ax, states[0], robot_radius, color=color, label=label)
+    #label_circ = draw_circle(ax, states[0], robot_radius, color=color, label=label)
+    label_circ = None
     for i in xrange(len(states)):
         if i % skip != 0:
             continue;
         state = states[i]
-        draw_circle(ax, state, robot_radius, color=color)
+        plt_color = color[i] if len(color) == len(states) else color
+        if label_circ is None:
+          label_circ = draw_circle(ax, state, robot_radius, color=plt_color, label=label)
+        else:
+          draw_circle(ax, state, robot_radius, color=plt_color, label=None)
         #ax.add_artist(plt.Circle(state, 0.5, color=color))
     #plt.plot(states[:,0], states[:,1], color=0.5*np.asarray(color), linewidth=3)
     return label_circ

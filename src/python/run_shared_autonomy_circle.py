@@ -29,7 +29,6 @@ import multiprocessing as mp
 from functools import partial
 
 
-
 data_dir = "../cached_data"
 pckl_filename = "shared_autonomy.pckl"
 
@@ -49,7 +48,80 @@ class CachedDataKeys:
     self.true_goal_ind = 'true_goal_ind'
     self.world_dims = 'world_dims'
 
+    self.value_display_policy = 'value_display_policy'
+    self.value_display_timestep = 'value_display_timestep'
+    self.colors = 'plt_colors'
+
 cached_data_keys = CachedDataKeys()
+
+def handle_key_press(event, all_vals_plotting, ax):
+  ax.clear()
+  if event is not None:
+    #up or down changes timestep
+    if event.key == 'up' or event.key == 'down':
+      to_add = 1 if event.key == 'up' else -1
+      value_display_timestep = all_vals_plotting[cached_data_keys.value_display_timestep]
+      num_timesteps = all_vals_plotting[cached_data_keys.num_timesteps]
+
+      #increment by one, mod to wrap around when out of bounds
+      value_display_timestep = (value_display_timestep + to_add) % num_timesteps
+
+      all_vals_plotting[cached_data_keys.value_display_timestep] = value_display_timestep 
+    #left or right changes algorithm
+    elif event.key == 'left' or event.key == 'right':
+      to_add = 1 if event.key == 'right' else -1
+      value_display_policy = all_vals_plotting[cached_data_keys.value_display_policy]
+      labels = all_vals_plotting[cached_data_keys.labels]
+      #find current index
+      value_display_policy_index = labels.index(value_display_policy)
+      #increment by one, mod to wrap around when out of bounds
+      value_display_policy_index = (value_display_policy_index + to_add) % len(labels)
+      value_display_policy = labels[value_display_policy_index]
+      
+      all_vals_plotting[cached_data_keys.value_display_policy] = value_display_policy
+    elif event.key == 'q':
+      plt.close()
+      return
+
+  positions_get_value = all_vals_plotting[cached_data_keys.positions_get_value]
+  labels = all_vals_plotting[cached_data_keys.labels]
+
+  obs_poses = all_vals_plotting[cached_data_keys.obs_poses]
+  obs_radii = all_vals_plotting[cached_data_keys.obs_radii]
+  start_pos = all_vals_plotting[cached_data_keys.start_pos]
+  goal_states = all_vals_plotting[cached_data_keys.goal_states]
+  true_goal_ind = all_vals_plotting[cached_data_keys.true_goal_ind]
+  world_dims = all_vals_plotting[cached_data_keys.world_dims]
+
+
+  # set the current timestep and algorithm to show value for
+  value_display_policy = all_vals_plotting[cached_data_keys.value_display_policy]
+  value_display_timestep = all_vals_plotting[cached_data_keys.value_display_timestep]
+  print 'displaying policy ' + value_display_policy + ' at timestep ' + str(value_display_timestep)
+
+  vis.draw_value_at_positions(ax, positions_get_value, all_vals_plotting[value_display_policy][cached_data_keys.values][value_display_timestep])
+
+  vis.draw_env_multiend(ax, start_pos, goal_states, true_goal_ind, vis.robot_radius, obs_poses, obs_radii);
+  labels_circ = []
+  for label, color in zip(labels, all_vals_plotting[cached_data_keys.colors]):
+      states = all_vals_plotting[label][cached_data_keys.states]
+      #Darken circle for the current policy and timstep displaying value
+      if label == value_display_policy and len(color) == 4:
+        base_color = color
+        color = [color for i in range(len(states))]
+        color[value_display_timestep] = (base_color[0], base_color[1], base_color[2], 1.0)
+        color[value_display_timestep]
+      label_circ = vis.draw_traj(ax, states, vis.robot_radius, color=color, label=label, skip=1)
+      labels_circ.append(label_circ)
+  #plt.axis('square')
+  #plt.axis([float(d) for d in world_dims])
+  ax.legend(handles=labels_circ)
+  plt.draw()
+  #plt.tight_layout()
+
+
+
+
 
 def save_pckl(data):
   filename = data_dir + '/' + pckl_filename
@@ -65,7 +137,7 @@ def load_pckl():
     return None
 
 def run_controller_until_done(policy_type, init_args):
-  init_keys = CachedDataKeys()
+  init_keys = cached_data_keys
   world_dims = init_args[init_keys.world_dims]
   positions_get_value = init_args[init_keys.positions_get_value]
 
@@ -111,8 +183,8 @@ if __name__ == "__main__":
       #set positions for getting value
       dist_between = 5.
       positions_get_value = []
-      for x in np.arange( float(world_dims[0])+dist_between, float(world_dims[1]), dist_between):
-        for y in np.arange( float(world_dims[2])+dist_between, float(world_dims[3]), dist_between):
+      for x in np.arange( float(world_dims[0]), float(world_dims[1]+dist_between), dist_between):
+        for y in np.arange( float(world_dims[2]), float(world_dims[3]+dist_between), dist_between):
           positions_get_value.append(np.array([x, y]))
       
       all_vals_plotting[cached_data_keys.positions_get_value] = positions_get_value
@@ -164,36 +236,29 @@ if __name__ == "__main__":
 
 
     COLORS = [(0.3,0.3,0.3, 0.2), (0.1,0.8,0.8, 0.2), (0.1,0.3,0.8, 0.2), (0.8,0.3,0.8, 0.2), (0.7,0.8,0.2, 0.2)] 
+    all_vals_plotting[cached_data_keys.colors] = COLORS
 
     # draw
-    plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=(10, 8))
     ax = plt.gca()
 
-    positions_get_value = all_vals_plotting[cached_data_keys.positions_get_value]
     labels = all_vals_plotting[cached_data_keys.labels]
-
-    obs_poses = all_vals_plotting[cached_data_keys.obs_poses]
-    obs_radii = all_vals_plotting[cached_data_keys.obs_radii]
-    start_pos = all_vals_plotting[cached_data_keys.start_pos]
-    goal_states = all_vals_plotting[cached_data_keys.goal_states]
-    true_goal_ind = all_vals_plotting[cached_data_keys.true_goal_ind]
     world_dims = all_vals_plotting[cached_data_keys.world_dims]
 
+    # set the current timestep and algorithm to show value for
+    all_vals_plotting[cached_data_keys.value_display_policy] = labels[1]
+    all_vals_plotting[cached_data_keys.value_display_timestep] = 0
 
+    handle_key_press(None, all_vals_plotting, ax)
 
-    #TODO darken points for current time step
-    #vis.draw_value_at_positions(ax, positions_get_value, all_vals_plotting[labels[0]][cached_data_keys.values][1])
-
-    vis.draw_env_multiend(ax, start_pos, goal_states, true_goal_ind, vis.robot_radius, obs_poses, obs_radii);
-    labels_circ = []
-    for label, color in zip(labels, COLORS):
-        states = all_vals_plotting[label][cached_data_keys.states]
-        label_circ = vis.draw_traj(ax, states, vis.robot_radius, color=color, label=label, skip=1)
-        labels_circ.append(label_circ)
     plt.axis('square')
     plt.axis([float(d) for d in world_dims])
-    ax.legend(handles=labels_circ)
+    #ax.legend(handles=labels_circ)
     plt.tight_layout()
+
+
+    fig.canvas.mpl_connect('key_press_event', partial(handle_key_press, all_vals_plotting=all_vals_plotting, ax=ax) )
+
     plt.show()
 
 #    cost, states_true_1, obs_fname_1 = ilqr.control_shared_autonomy(ilqr.TRUE_ILQR, 

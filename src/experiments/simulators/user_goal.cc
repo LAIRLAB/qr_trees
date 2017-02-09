@@ -7,9 +7,18 @@
 
 namespace user_goal
 {
-Matrix<STATE_DIM, STATE_DIM> Q = 0.0001*Matrix<STATE_DIM,STATE_DIM>::Identity();
+
+Matrix<STATE_DIM, STATE_DIM> Q = 0.00001*Matrix<STATE_DIM,STATE_DIM>::Identity();
+//Matrix<STATE_DIM, STATE_DIM> QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity(); // Quadratic state cost for final timestep.
+#ifdef USE_VEL
+Matrix<STATE_DIM, STATE_DIM> QT = Eigen::DiagonalMatrix<double,STATE_DIM,STATE_DIM>(StateVector(200., 200., 25., 25.));
+#else
 Matrix<STATE_DIM, STATE_DIM> QT = 25*Matrix<STATE_DIM,STATE_DIM>::Identity(); // Quadratic state cost for final timestep.
-Matrix<CONTROL_DIM, CONTROL_DIM> R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
+#endif
+
+
+
+Matrix<CONTROL_DIM, CONTROL_DIM> R = 0.2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 StateVector xT; // Goal state for final timestep.
 StateVector x0; // Start state for 0th timestep.
 

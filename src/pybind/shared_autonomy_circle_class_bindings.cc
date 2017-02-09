@@ -52,6 +52,10 @@ PYBIND11_PLUGIN(shared_autonomy_circle_class_bindings)
     .export_values() 
     .def("__str__", &to_string);
 
+    py::enum_<experiments::State>(m, "State")
+    .value("STATE_DIM", experiments::State::STATE_DIM);
+
+
 
     py::class_<SharedAutonomyCircle>(m, "SharedAutonomyCircle")
         .def(py::init<const PolicyTypes, const CircleWorld&, const std::vector<StateVector>&, const std::vector<double>&, const int, const int>())

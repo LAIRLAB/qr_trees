@@ -98,7 +98,7 @@ public:
     inline StateVector get_last_state(){return states_.back();}
     inline ControlVector get_last_control(){return controls_.back();}
     inline int get_num_timesteps_remaining(){return timesteps_ - current_timestep_;}
-    inline bool is_done(){return current_timestep_ >= timesteps_ -1;}
+    inline bool is_done(){return current_timestep_ >= timesteps_;}
     inline double get_rollout_cost(){return rollout_cost_;}
     inline int get_num_states_computed(){return states_.size();}
 

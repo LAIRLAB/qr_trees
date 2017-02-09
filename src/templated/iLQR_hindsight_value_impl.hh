@@ -87,7 +87,7 @@ inline void iLQRHindsightValueSolver<xdim,udim>::solve(const int T,
         const double cost_convg_ratio, const double start_alpha,
         const bool warm_start, const int t_offset)
 {
-    IS_GREATER(T, 1);
+    IS_GREATER_EQUAL(T, 1);
     IS_GREATER_EQUAL(mu, 0);
     IS_GREATER(max_iters, 0);
     IS_GREATER(cost_convg_ratio, 0);

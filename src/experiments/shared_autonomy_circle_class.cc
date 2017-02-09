@@ -155,7 +155,7 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
 
 void SharedAutonomyCircle::run_control(int num_timesteps)
 {
-    const int loop_limit = std::min(get_num_timesteps_remaining()-1, num_timesteps) + current_timestep_;
+    const int loop_limit = std::min(get_num_timesteps_remaining(), num_timesteps) + current_timestep_;
 
     DEBUG("Running up to timestep " << loop_limit << ". Currently at timestep " << current_timestep_);
     for (; current_timestep_ < loop_limit; ++current_timestep_)
@@ -193,7 +193,7 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
         //PRINT(q_values);
         //PRINT(v_values);
 
-        goal_predictor_.update_goal_distribution(q_values, v_values, 0.01);
+        goal_predictor_.update_goal_distribution(q_values, v_values, 0.00001);
         std::vector<double> updated_goal_distribution = goal_predictor_.get_goal_distribution();
         size_t argmax_goal = argmax(updated_goal_distribution);
 

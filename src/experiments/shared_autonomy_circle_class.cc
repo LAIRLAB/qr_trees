@@ -157,9 +157,9 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
 {
     const int loop_limit = std::min(get_num_timesteps_remaining(), num_timesteps) + current_timestep_;
 
-    DEBUG("Running up to timestep " << loop_limit << ". Currently at timestep " << current_timestep_);
     for (; current_timestep_ < loop_limit; ++current_timestep_)
     {
+        DEBUG(to_string(policy_type_) << ":timestep " << current_timestep_);
         const int t_offset = current_timestep_ >  0 ? 1 : 0;
         const int plan_horizon = get_num_timesteps_remaining();
         //const int plan_horizon = std::min(T-t, MPC_HORIZON);
@@ -193,7 +193,7 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
         //PRINT(q_values);
         //PRINT(v_values);
 
-        goal_predictor_.update_goal_distribution(q_values, v_values, 0.00001);
+        goal_predictor_.update_goal_distribution(q_values, v_values, 0.001);
         std::vector<double> updated_goal_distribution = goal_predictor_.get_goal_distribution();
         size_t argmax_goal = argmax(updated_goal_distribution);
 
@@ -250,6 +250,7 @@ void SharedAutonomyCircle::run_control(int num_timesteps)
 
     if (is_done())
     {
+        DEBUG(to_string(policy_type_) << ": Last state " << get_last_state().transpose());
         rollout_cost_ += goals_[true_goal_ind_].cT_(get_last_state());
     }
 

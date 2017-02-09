@@ -25,38 +25,74 @@ import matplotlib.pyplot as plt
 import cPickle as pickle
 import argparse
 
+import multiprocessing as mp
+from functools import partial
+
+
 
 data_dir = "../cached_data"
 pckl_filename = "shared_autonomy.pckl"
 
-labels_key = 'labels'
-states_key = 'states'
-values_key = 'values_grid'
-positions_get_value_key = 'positions_get_value'
-obs_poses_key = 'obs_poses'
-obs_radii_key = 'obs_radii'
-start_pos_key = 'start_pos'
-goal_states_key = 'goal_states'
-true_goal_ind_key = 'true_goal_ind'
-world_dims_key = 'world_dims'
 
-#class CachedDataKeys(object):
+class CachedDataKeys:
+  def __init__(self):
+    self.labels = 'labels'
+    self.states = 'states'
+    self.values = 'values_grid'
+    self.num_timesteps = 'num_timesteps'
+    self.positions_get_value = 'positions_get_value'
+    self.obs_poses = 'obs_poses'
+    self.obs_radii = 'obs_radii'
+    self.start_pos = 'start_pos'
+    self.goal_states = 'goal_states'
+    self.goal_priors = 'goal_priors'
+    self.true_goal_ind = 'true_goal_ind'
+    self.world_dims = 'world_dims'
 
-
+cached_data_keys = CachedDataKeys()
 
 def save_pckl(data):
-    filename = data_dir + '/' + pckl_filename
-    with open(filename, 'w') as file:
-        pickle.dump(data, file)
+  filename = data_dir + '/' + pckl_filename
+  with open(filename, 'w') as file:
+    pickle.dump(data, file)
 
 def load_pckl():
-    filename = data_dir + '/' + pckl_filename
-    if os.path.isfile(filename):
-        with open(filename, 'r') as file:
-            return pickle.load(file)
-    else:
-        return None
+  filename = data_dir + '/' + pckl_filename
+  if os.path.isfile(filename):
+    with open(filename, 'r') as file:
+      return pickle.load(file)
+  else:
+    return None
 
+def run_controller_until_done(policy_type, init_args):
+  init_keys = CachedDataKeys()
+  world_dims = init_args[init_keys.world_dims]
+  positions_get_value = init_args[init_keys.positions_get_value]
+
+  world = ilqr.CircleWorld(world_dims)
+
+  obs_pos_1 = init_args[init_keys.obs_poses][0]
+  obs_radius = init_args[init_keys.obs_radii][0]
+  obstacle_1 = ilqr.Circle(obs_radius, obs_pos_1);
+
+  # add obstacle to world 1
+  world.add_obstacle(obstacle_1);
+
+  goal_states = init_args[init_keys.goal_states]
+  goal_priors = init_args[init_keys.goal_priors]
+
+  true_goal_ind = init_args[init_keys.true_goal_ind]
+  num_timesteps = init_args[init_keys.num_timesteps]
+
+  controller = ilqr.SharedAutonomyCircle(policy_type, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
+
+  all_value_grids = []
+  while not controller.is_done():
+    controller.run_control(1)
+    values = controller.get_values_at_positions(positions_get_value, 0)
+    all_value_grids.append(values)
+
+  return (controller.get_states(), all_value_grids)
 
 
 
@@ -70,6 +106,7 @@ if __name__ == "__main__":
     if all_vals_plotting is None or args.rerun:
       all_vals_plotting = {}
       world_dims = [-30, 30, -30, 30]
+      all_vals_plotting[cached_data_keys.world_dims] = world_dims
 
       #set positions for getting value
       dist_between = 5.
@@ -78,16 +115,12 @@ if __name__ == "__main__":
         for y in np.arange( float(world_dims[2])+dist_between, float(world_dims[3]), dist_between):
           positions_get_value.append(np.array([x, y]))
       
-      all_vals_plotting[positions_get_value_key] = positions_get_value
+      all_vals_plotting[cached_data_keys.positions_get_value] = positions_get_value
 
-      world = ilqr.CircleWorld(world_dims)
-
-      obs_pos_1 = [0., 0.]
-      obs_radius = 10.0
-      obstacle_1 = ilqr.Circle(obs_radius, obs_pos_1);
-
-      # add obstacle to world 1
-      world.add_obstacle(obstacle_1);
+      obs_poses = [np.array([0., 0.])]
+      obs_radii = [10.0]
+      all_vals_plotting[cached_data_keys.obs_poses] = obs_poses
+      all_vals_plotting[cached_data_keys.obs_radii] = obs_radii
 
       goal_states = []
       if ilqr.State.STATE_DIM == 4:
@@ -96,47 +129,36 @@ if __name__ == "__main__":
       else:
         goal_states.append(np.array([-15., 25.]))
         goal_states.append(np.array([15, 25.]))
-
-
-
       goal_priors = [0.5, 0.5]
 
-      obs_poses = [o.position for o in world.obstacles]
-      obs_radii = [np.array(o.radius) for o in world.obstacles]
-
       true_goal_ind = 0
-      num_timesteps = 10
+      num_timesteps = 30
 
-      all_vals_plotting[goal_states_key] = goal_states
+      all_vals_plotting[cached_data_keys.goal_states] = goal_states
+      all_vals_plotting[cached_data_keys.goal_priors] = goal_priors
+      all_vals_plotting[cached_data_keys.true_goal_ind] = true_goal_ind
+      all_vals_plotting[cached_data_keys.num_timesteps] = num_timesteps
       #all_vals_plotting[start_pos_key] = start_pos
-      all_vals_plotting[obs_poses_key] = obs_poses
-      all_vals_plotting[obs_radii_key] = obs_radii
-      all_vals_plotting[true_goal_ind_key] = true_goal_ind
-      all_vals_plotting[world_dims_key] = world_dims
 
-      policy_types = [ilqr.AVG_COST, ilqr.TRUE_ILQR, ilqr.HINDSIGHT, ilqr.PROB_WEIGHTED_CONTROL]
+    
+      policy_types = [ilqr.TRUE_ILQR, ilqr.HINDSIGHT, ilqr.PROB_WEIGHTED_CONTROL, ilqr.AVG_COST]
       labels = [str(p) for p in policy_types]
-      all_vals_plotting[labels_key] = labels
-      for policy_type,label in zip(policy_types, labels):
-        controller = ilqr.SharedAutonomyCircle(policy_type, world, goal_states, goal_priors, true_goal_ind, num_timesteps)
-        all_value_grids = []
-        while not controller.is_done():
-          controller.run_control(1)
-          values = controller.get_values_at_positions(positions_get_value, 0)
-          all_value_grids.append(values)
+      all_vals_plotting[cached_data_keys.labels] = labels
+      #create all controllers
+      p = mp.Pool(4)
 
-        states = controller.get_states()
 
+      all_return_values = p.map(partial(run_controller_until_done, init_args=all_vals_plotting), policy_types)
+
+      for policy_type,label,controller_returns in zip(policy_types, labels, all_return_values):
         #make a dict with relevant values for this controller
-        vals_this_cont = {}
-        vals_this_cont[states_key] = states
-        vals_this_cont[values_key] = all_value_grids
+        vals_this_cont = {cached_data_keys.states: controller_returns[0], cached_data_keys.values: controller_returns[1]}
 
         #save to dict of all values
         all_vals_plotting[label] = vals_this_cont
 
 
-      all_vals_plotting[start_pos_key] = states[0]
+      all_vals_plotting[cached_data_keys.start_pos] = all_return_values[0][0][0]
       save_pckl(all_vals_plotting)  
 
 
@@ -147,25 +169,25 @@ if __name__ == "__main__":
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
 
-    positions_get_value = all_vals_plotting[positions_get_value_key]
-    labels = all_vals_plotting[labels_key]
+    positions_get_value = all_vals_plotting[cached_data_keys.positions_get_value]
+    labels = all_vals_plotting[cached_data_keys.labels]
 
-    obs_poses = all_vals_plotting[obs_poses_key]
-    obs_radii = all_vals_plotting[obs_radii_key]
-    start_pos = all_vals_plotting[start_pos_key]
-    goal_states = all_vals_plotting[goal_states_key]
-    true_goal_ind = all_vals_plotting[true_goal_ind_key]
-    world_dims = all_vals_plotting[world_dims_key]
+    obs_poses = all_vals_plotting[cached_data_keys.obs_poses]
+    obs_radii = all_vals_plotting[cached_data_keys.obs_radii]
+    start_pos = all_vals_plotting[cached_data_keys.start_pos]
+    goal_states = all_vals_plotting[cached_data_keys.goal_states]
+    true_goal_ind = all_vals_plotting[cached_data_keys.true_goal_ind]
+    world_dims = all_vals_plotting[cached_data_keys.world_dims]
 
 
 
     #TODO darken points for current time step
-    vis.draw_value_at_positions(ax, positions_get_value, all_vals_plotting[labels[0]][values_key][1])
+    #vis.draw_value_at_positions(ax, positions_get_value, all_vals_plotting[labels[0]][cached_data_keys.values][1])
 
     vis.draw_env_multiend(ax, start_pos, goal_states, true_goal_ind, vis.robot_radius, obs_poses, obs_radii);
     labels_circ = []
     for label, color in zip(labels, COLORS):
-        states = all_vals_plotting[label][states_key]
+        states = all_vals_plotting[label][cached_data_keys.states]
         label_circ = vis.draw_traj(ax, states, vis.robot_radius, color=color, label=label, skip=1)
         labels_circ.append(label_circ)
     plt.axis('square')

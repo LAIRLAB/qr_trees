@@ -21,7 +21,7 @@ namespace directdrive
 //template<int dim>
 //using Vector = Eigen::Matrix<double, dim, 1>;
 
-#define USE_VEL    
+//#define USE_VEL    
 #ifdef USE_VEL
 enum State
 {

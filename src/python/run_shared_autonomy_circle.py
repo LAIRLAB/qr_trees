@@ -142,13 +142,11 @@ def run_controller_until_done(policy_type, init_args):
   positions_get_value = init_args[init_keys.positions_get_value]
 
   world = ilqr.CircleWorld(world_dims)
-
-  obs_pos_1 = init_args[init_keys.obs_poses][0]
-  obs_radius = init_args[init_keys.obs_radii][0]
-  obstacle_1 = ilqr.Circle(obs_radius, obs_pos_1);
-
-  # add obstacle to world 1
-  world.add_obstacle(obstacle_1);
+  
+  #add all obstacles
+  for obs_pos, obs_radius in zip(init_args[init_keys.obs_poses], init_args[init_keys.obs_radii]):
+    obstacle = ilqr.Circle(obs_radius, obs_pos)
+    world.add_obstacle(obstacle)
 
   goal_states = init_args[init_keys.goal_states]
   goal_priors = init_args[init_keys.goal_priors]
@@ -189,8 +187,11 @@ if __name__ == "__main__":
       
       all_vals_plotting[cached_data_keys.positions_get_value] = positions_get_value
 
-      obs_poses = [np.array([0., 0.])]
-      obs_radii = [10.0]
+      #obs_poses = [np.array([0., 0.])]
+      #obs_radii = [10.0]
+      obs_y = 0.
+      obs_poses = [np.array([0., obs_y]), np.array([-15.,obs_y]), np.array([15., obs_y])]
+      obs_radii = [3.0, 3.0, 3.0]
       all_vals_plotting[cached_data_keys.obs_poses] = obs_poses
       all_vals_plotting[cached_data_keys.obs_radii] = obs_radii
 
@@ -204,7 +205,7 @@ if __name__ == "__main__":
       goal_priors = [0.5, 0.5]
 
       true_goal_ind = 0
-      num_timesteps = 30
+      num_timesteps = 20
 
       all_vals_plotting[cached_data_keys.goal_states] = goal_states
       all_vals_plotting[cached_data_keys.goal_priors] = goal_priors

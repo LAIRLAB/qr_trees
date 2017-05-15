@@ -39,7 +39,7 @@ SharedAutonomyCircle::SharedAutonomyCircle(const PolicyTypes policy, const Circl
     IS_TRUE(std::equal(world_dims.begin(), world_dims.begin(), world.dimensions().begin()));
 
     // Currently each can only have 1 obstacle.
-    IS_LESS_EQUAL(world.obstacles().size(), 1);
+    //IS_LESS_EQUAL(world.obstacles().size(), 1);
 
     IS_GREATER(timesteps_, 1);
     IS_GREATER(dt, 0);

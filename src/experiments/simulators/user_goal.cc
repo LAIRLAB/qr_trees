@@ -29,7 +29,7 @@ StateVector x0; // Start state for 0th timestep.
 //R = 2*Matrix<CONTROL_DIM,CONTROL_DIM>::Identity();
 
 double robot_radius_ = 3.35/2.0; // iRobot create;
-double obstacle_factor_ = 300.0;
+double obstacle_factor_ = 100.0;
 double scale_factor_ = 1.0e0;
 
 double obstacle_cost(const CircleWorld &world, const double robot_radius, const StateVector &xt)
